@@ -4,6 +4,8 @@ import os
 import re
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
+from pathlib import Path
+from fastapi.responses import FileResponse
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -646,5 +648,11 @@ def get_hazards(
 
 app.include_router(api)
 app.include_router(build_assistant_router(_m6_build_route))  # M7: /api/assistant
+_INDEX = Path(__file__).parent / "index.html"
 
+@app.get("/", include_in_schema=False)
+def serve_frontend():
+    if not _INDEX.exists():
+        raise HTTPException(status_code=404, detail="index.html not found")
+    return FileResponse(_INDEX)
 # Run: uvicorn main:app --reload --port 8000
