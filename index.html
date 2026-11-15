@@ -1,0 +1,2850 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>ATHR | Mars Exploration Platform</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #12161c;
+      --panel2: #181e26;
+      --border: #29313b;
+      --text: #e8e9eb;
+      --muted: #94a0ab;
+      --accent: #d58a59;
+      --accent-text: #f0b48b;
+      --accent-soft: #38271e;
+      --ok: #80b99a;
+      --warn: #e0b36a;
+      --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+    }
+
+    button, input { font: inherit; color: inherit; }
+    button:not(:disabled) { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    :focus-visible {
+      outline: 2px solid var(--accent-text);
+      outline-offset: 2px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) 310px;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ---------- Sidebar ---------- */
+
+    #sidebar {
+      background: var(--panel);
+      border-inline-end: 1px solid var(--border);
+      padding: 24px 15px;
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      overflow-y: auto;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 30px; }
+
+    .brand-mark {
+      width: 36px; height: 36px;
+      flex: none;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #e5a477, #81462e);
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 20px;
+      color: #17100c;
+    }
+
+    .brand-name { font-size: 22px; font-weight: 800; letter-spacing: 3px; }
+    .brand-subtitle { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin-top: 3px; }
+
+    .nav-label {
+      padding: 0 10px;
+      margin: 10px 0;
+      color: #8a949f;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: flex; align-items: center; gap: 13px;
+      padding: 12px 13px;
+      margin-bottom: 5px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: #b4bcc5;
+      text-align: start;
+      font-size: 13px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .nav-item:hover { background: var(--panel2); color: #fff; }
+
+    .nav-item[aria-current="true"] {
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      border-color: #69452f;
+    }
+
+    .nav-icon { width: 19px; text-align: center; font-size: 16px; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 15px 10px 0;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.8;
+    }
+
+    .system-status { color: var(--ok); }
+    .system-status.is-error { color: var(--warn); }
+
+    /* ---------- Workspace ---------- */
+
+    #workspace { position: relative; min-width: 0; overflow: hidden; background: #100b08; }
+    #cesiumContainer { position: absolute; inset: 0; }
+
+    #topbar {
+      position: absolute; z-index: 10;
+      top: 20px; left: 24px; right: 24px;
+      display: flex; align-items: center; gap: 12px;
+      pointer-events: none;
+    }
+
+    .search-box {
+      width: min(430px, 70%);
+      height: 44px;
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 14px;
+      background: rgba(18, 22, 28, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      pointer-events: auto;
+      backdrop-filter: blur(12px);
+    }
+
+    .search-box span { color: var(--muted); }
+
+    .search-box input {
+      width: 100%;
+      background: transparent;
+      border: none; outline: none;
+      font-size: 13px;
+    }
+
+    .search-box input::placeholder { color: #8a949f; }
+
+    .search-box button {
+      flex: none;
+      border: 1px solid #69452f;
+      border-radius: 5px;
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      padding: 6px 11px;
+      font-size: 11px;
+    }
+
+    .search-box button:hover {
+      background: #503324;
+    }
+
+    /* ---------- Location search results ---------- */
+
+    #search-results {
+      position: absolute;
+      z-index: 15;
+      top: 72px;
+      inset-inline-start: 24px;
+      width: min(430px, calc(100% - 48px));
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 6px;
+      background: rgba(18, 22, 28, 0.97);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+    }
+
+    #search-results[hidden] { display: none; }
+
+    .search-result {
+      display: block;
+      width: 100%;
+      padding: 11px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .search-result:hover {
+      background: var(--accent-soft);
+    }
+
+    .search-result-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .search-result-coordinates {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .search-results-message {
+      padding: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .top-spacer { flex: 1; }
+
+    .top-button {
+      height: 40px;
+      padding: 0 14px;
+      background: rgba(18, 22, 28, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #cbd0d5;
+      font-size: 12px;
+      pointer-events: auto;
+    }
+
+    #panel-toggle { display: none; }
+
+    .mode-switch {
+      position: absolute; z-index: 10;
+      inset-inline-end: 24px; top: 82px;
+      display: flex; gap: 5px;
+      padding: 5px;
+      background: rgba(18, 22, 28, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .mode-switch button {
+      border: none;
+      background: transparent;
+      color: #9aa4ae;
+      padding: 7px 12px;
+      border-radius: 5px;
+      font-size: 11px;
+    }
+
+    .mode-switch button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-text); }
+
+    .globe-label {
+      position: absolute; z-index: 5;
+      inset-inline-start: 24px; bottom: 100px;
+      padding: 12px 15px;
+      background: rgba(15, 18, 22, 0.88);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px; line-height: 1.8;
+      pointer-events: none;
+    }
+
+    .globe-label strong { color: #e5a477; font-size: 13px; }
+
+    #globe-status {
+      position: absolute; z-index: 6;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: min(360px, 85%);
+      padding: 12px 16px;
+      background: rgba(15, 18, 22, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px; line-height: 1.6;
+      text-align: center;
+    }
+
+    #globe-status[hidden] { display: none; }
+    #globe-status.is-error { border-color: #7a5a2a; color: var(--warn); }
+
+    .layer-bar {
+      position: absolute; z-index: 10;
+      bottom: 25px; inset-inline-end: 24px;
+      display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end;
+    }
+
+    .layer-pill {
+      padding: 9px 13px;
+      background: rgba(18, 22, 28, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: #b4bcc5;
+      font-size: 11px;
+      backdrop-filter: blur(10px);
+    }
+
+    .layer-pill[aria-pressed="true"] {
+      background: var(--accent-soft);
+      border-color: #855638;
+      color: #efb28a;
+    }
+
+    /* ---------- Info panel ---------- */
+
+    #info-panel {
+      background: var(--panel);
+      border-inline-start: 1px solid var(--border);
+      padding: 25px 20px;
+      overflow-y: auto;
+      z-index: 30;
+    }
+
+    .panel-heading { font-size: 17px; font-weight: 700; line-height: 1.4; margin: 0 0 8px; }
+    .panel-description { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 25px; }
+
+    .section-title {
+      color: #9aa5b0;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin: 25px 0 12px;
+      font-weight: 600;
+    }
+
+    .info-card {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+
+    .info-card-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .info-card-description { color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    .tag {
+      display: inline-block;
+      margin-top: 9px;
+      padding: 4px 7px;
+      border-radius: 4px;
+      background: #252d35;
+      color: #b4c0ca;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .notice {
+      border-inline-start: 3px solid var(--accent);
+      padding: 11px 12px;
+      margin-top: 25px;
+      background: #211a16;
+      color: #d2b09a;
+      font-size: 12px; line-height: 1.7;
+    }
+
+    .panel-footer {
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border);
+      color: #8a949f;
+      font-size: 11px; line-height: 1.8;
+    }
+
+    /* ---------- M2: selected location ---------- */
+
+    .pick-card {
+      margin: 0 0 8px;
+      padding: 14px;
+      background: var(--panel2);
+      border: 1px solid #69452f;
+      border-radius: 9px;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .pick-title { font-weight: 700; margin-bottom: 6px; color: var(--accent-text); }
+    .pick-empty { color: var(--muted); font-size: 12px; }
+    .pick-note { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    [hidden] { display: none !important; }
+
+    .pick-elevation { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+    .pick-copy {
+      margin-top: 10px;
+      padding: 7px 12px;
+      background: var(--accent-soft);
+      border: 1px solid #69452f;
+      border-radius: 6px;
+      color: var(--accent-text);
+      font-size: 11px;
+    }
+
+    .pick-chip {
+      position: absolute; z-index: 6;
+      inset-inline-start: 24px; top: 74px;
+      padding: 8px 12px;
+      background: rgba(15, 18, 22, 0.92);
+      border: 1px solid #69452f;
+      border-radius: 8px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .mode-switch button:disabled { opacity: 0.5; }
+
+    @media (max-width: 650px) { .pick-chip { inset-inline-start: 10px; top: 118px; } }
+
+    /* ---------- Cesium credits: kept visible (attribution), restyled ---------- */
+
+    .cesium-viewer-bottom {
+      left: 24px; right: auto; bottom: 72px;
+      font-size: 10px;
+      pointer-events: auto;
+    }
+
+    .cesium-credit-logoContainer { display: none !important; }
+    .cesium-credit-textContainer, .cesium-credit-text { color: #8a949f; }
+
+    /* ---------- Responsive ---------- */
+
+    @media (max-width: 1050px) {
+      #app { grid-template-columns: 190px minmax(0, 1fr); }
+
+      #info-panel {
+        position: fixed;
+        top: 0; inset-inline-end: 0; bottom: 0;
+        width: min(340px, 90vw);
+        transform: translateX(100%);
+        visibility: hidden;
+        transition: transform 0.25s, visibility 0.25s;
+        box-shadow: -12px 0 30px rgba(0, 0, 0, 0.5);
+      }
+
+      html[dir="rtl"] #info-panel { box-shadow: 12px 0 30px rgba(0, 0, 0, 0.5); }
+      html[dir="rtl"] #info-panel:not(.open) { transform: translateX(-100%); }
+      #info-panel.open { transform: none; visibility: visible; }
+      #panel-toggle { display: inline-block; }
+    }
+
+    @media (max-width: 650px) {
+      #app { grid-template-columns: 65px minmax(0, 1fr); }
+      #sidebar { padding: 15px 7px; }
+      .brand { justify-content: center; padding: 0 0 25px; }
+      .brand-text, .nav-label, .nav-text, .sidebar-footer { display: none; }
+      .nav-item { justify-content: center; padding: 12px 5px; }
+      #topbar { left: 10px; right: 10px; top: 12px; }
+      .globe-label { inset-inline-start: 10px; bottom: 112px; }
+      .cesium-viewer-bottom { left: 10px; bottom: 82px; }
+      .layer-bar { left: 10px; right: 10px; bottom: 15px; }
+      .layer-pill { padding: 8px 9px; font-size: 10px; }
+      .mode-switch { inset-inline-end: 10px; top: 65px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+
+    /* ---------- Language / RTL support ---------- */
+
+    /* Cesium keeps its own left-to-right layout in every language. */
+    #cesiumContainer { direction: ltr; }
+
+    /* Scientific values (coordinates, elevations, slopes) keep their own direction. */
+    .num,
+    .pick-chip,
+    .search-result-coordinates { unicode-bidi: plaintext; }
+
+    .top-button#lang-toggle { pointer-events: auto; cursor: pointer; }
+    .top-button#lang-toggle:hover { color: #fff; border-color: #69452f; }
+
+    html[lang="ar"] {
+      --font: "Segoe UI", Tahoma, "Noto Sans Arabic", "Noto Naskh Arabic", system-ui, Arial, sans-serif;
+    }
+
+    /* Letter-spacing and forced upper case break Arabic letter joining. */
+    html[lang="ar"] :where(.brand-subtitle, .nav-label, .section-title, .tag, .panel-footer) {
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    /* ---------- M7: AI Assistant ---------- */
+
+    textarea { font: inherit; color: inherit; }
+
+    #ai-chat {
+      position: absolute; z-index: 25;
+      top: 76px; bottom: 16px; inset-inline-end: 16px;
+      width: min(390px, calc(100% - 32px));
+      display: flex; flex-direction: column;
+      background: rgba(18, 22, 28, 0.97);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+    #ai-chat[hidden] { display: none; }
+
+    .ai-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .ai-title { font-size: 14px; font-weight: 800; letter-spacing: 1.5px; }
+    .ai-status { margin-top: 2px; font-size: 11px; color: var(--muted); }
+    .ai-status::before { content: "● "; }
+    .ai-status.is-ok { color: var(--ok); }
+    .ai-status.is-warn { color: var(--warn); }
+    .ai-head-actions { margin-inline-start: auto; display: flex; gap: 6px; }
+
+    .ai-icon-btn {
+      background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 10px; font-size: 12px; color: #b4bcc5;
+    }
+    .ai-icon-btn:hover:not(:disabled) { color: #fff; border-color: #69452f; }
+
+    .ai-context { padding: 8px 14px; font-size: 11px; line-height: 1.6; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--border); }
+    .ai-context strong { color: var(--accent-text); font-weight: 600; }
+
+    .ai-log { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .ai-empty { color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+    .ai-msg { max-width: 92%; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ai-msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid #69452f; color: #f6dcc8; }
+    .ai-msg.assistant { align-self: flex-start; background: var(--panel2); border: 1px solid var(--border); }
+    .ai-msg.error { align-self: stretch; max-width: 100%; background: #2a1f12; border: 1px solid #6b4f1f; color: var(--warn); }
+    .ai-msg.loading { align-self: flex-start; color: var(--muted); font-style: italic; }
+
+    .ai-meta { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 11px; line-height: 1.6; color: var(--muted); white-space: normal; }
+    .ai-meta-row + .ai-meta-row { margin-top: 6px; }
+    .ai-meta b { color: #b4bcc5; font-weight: 600; }
+    .ai-meta a { color: var(--accent-text); }
+
+    .ai-suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 0; }
+    .ai-chip {
+      background: transparent; border: 1px solid var(--border); border-radius: 999px;
+      padding: 5px 11px; font-size: 11px; color: #b4bcc5;
+    }
+    .ai-chip:hover:not(:disabled) { color: var(--accent-text); border-color: #69452f; }
+
+    .ai-form { display: flex; align-items: flex-end; gap: 8px; padding: 12px 14px; }
+    .ai-input {
+      flex: 1; min-height: 40px; max-height: 110px; resize: none;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 11px; font-size: 13px; color: var(--text);
+    }
+    .ai-send { background: var(--accent); color: #17100c; border: none; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+
+    @media (max-width: 650px) {
+      #ai-chat { top: 68px; bottom: 10px; inset-inline-end: 10px; width: calc(100% - 20px); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">A</div>
+        <div class="brand-text">
+          <div class="brand-name">ATHR</div>
+          <div class="brand-subtitle" data-i18n="brand.subtitle">MARS EXPLORATION</div>
+        </div>
+      </div>
+
+      <nav aria-label="Workspace" data-i18n-attr="aria-label:nav.workspace">
+        <div class="nav-label" aria-hidden="true" data-i18n="nav.workspace">Workspace</div>
+
+        <button class="nav-item" data-section="Explore" aria-current="true" title="Explore" data-i18n-attr="title:nav.explore">
+          <span class="nav-icon" aria-hidden="true">◎</span><span class="nav-text" data-i18n="nav.explore">Explore</span>
+        </button>
+        <button class="nav-item" data-section="Layers" title="Layers" data-i18n-attr="title:nav.layers">
+          <span class="nav-icon" aria-hidden="true">▦</span><span class="nav-text" data-i18n="nav.layers">Layers</span>
+        </button>
+        <button class="nav-item" data-section="Plan" title="Plan" data-i18n-attr="title:nav.plan">
+          <span class="nav-icon" aria-hidden="true">⌁</span><span class="nav-text" data-i18n="nav.plan">Plan</span>
+        </button>
+        <button class="nav-item" data-section="Hazards" title="Hazards" data-i18n-attr="title:nav.hazards">
+          <span class="nav-icon" aria-hidden="true">△</span><span class="nav-text" data-i18n="nav.hazards">Hazards</span>
+        </button>
+        <button class="nav-item" data-section="Missions" title="Missions" data-i18n-attr="title:nav.missions">
+          <span class="nav-icon" aria-hidden="true">⌖</span><span class="nav-text" data-i18n="nav.missions">Missions</span>
+        </button>
+        <button class="nav-item" data-section="AI Assistant" title="AI Assistant" data-i18n-attr="title:nav.ai">
+          <span class="nav-icon" aria-hidden="true">✧</span><span class="nav-text" data-i18n="nav.ai">AI Assistant</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status" id="system-status" role="status">● Interface online</div>
+        <span data-i18n="sidebar.prototype">ATHR Prototype</span><br /><span data-i18n="sidebar.build">Build M4</span>
+      </div>
+    </aside>
+
+    <!-- Workspace -->
+    <main id="workspace">
+      <div id="cesiumContainer"></div>
+
+      <div id="topbar">
+        <div class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input
+            id="location-search"
+            type="search"
+            placeholder="Search a name or coordinates: Jezero, 18.4, 77.5"
+            aria-label="Search Mars feature name or coordinates"
+            data-i18n-attr="placeholder:search.placeholder;aria-label:search.aria"
+            autocomplete="off"
+          />
+          <button type="button" id="location-search-button" title="Search" data-i18n="search.go" data-i18n-attr="title:search.title">Go</button>
+        </div>
+        <div class="top-spacer"></div>
+        <button class="top-button" id="panel-toggle" aria-expanded="false" aria-controls="info-panel" data-i18n="top.details">Details</button>
+        <button class="top-button" id="lang-toggle" type="button" lang="ar" aria-label="Switch language to Arabic">العربية</button>
+      </div>
+
+      <div id="search-results" hidden aria-live="polite"></div>
+
+      <div class="mode-switch" role="group" aria-label="Map mode" data-i18n-attr="aria-label:map.modeAria">
+        <button data-mode="3d" aria-pressed="true">3D</button>
+        <button data-mode="2d" aria-pressed="false">2D</button>
+      </div>
+
+      <div id="globe-status" role="status" aria-live="polite">Loading Mars imagery…</div>
+      <div id="pick-chip" class="pick-chip" hidden></div>
+
+      <div class="globe-label">
+        <strong data-i18n="label.mars">MARS</strong><br />
+        <span data-i18n="label.ellipsoid">Reference ellipsoid · 3,396 km</span><br />
+        <span data-i18n="label.imagery">Surface imagery · NASA Mars Trek</span>
+      </div>
+
+      <!-- M4: layer controls -->
+      <div class="layer-bar" role="group" aria-label="Map layers" data-i18n-attr="aria-label:layers.aria">
+        <button id="layer-surface" class="layer-pill"
+                aria-pressed="true"
+                title="NASA Mars Trek surface imagery"
+                data-i18n="layer.surface"
+                data-i18n-attr="title:layer.surface.title">Surface</button>
+
+        <button id="layer-relief" class="layer-pill"
+                aria-pressed="true"
+                title="Selected-location MOLA elevation"
+                data-i18n="layer.relief"
+                data-i18n-attr="title:layer.relief.title">Relief</button>
+
+        <button id="layer-slope" class="layer-pill"
+                aria-pressed="false"
+                title="Selected-location MOLA slope estimate"
+                data-i18n="layer.slope"
+                data-i18n-attr="title:layer.slope.title">Slope</button>
+
+        <button id="layer-coverage" class="layer-pill"
+                aria-pressed="false"
+                title="NASA Mars 2020 waypoints"
+                data-i18n="layer.coverage"
+                data-i18n-attr="title:layer.coverage.title">Coverage</button>
+      </div>
+
+      <!-- M7: AI Assistant -->
+      <section id="ai-chat" role="dialog" aria-labelledby="ai-title" hidden>
+        <div class="ai-head">
+          <div>
+            <div class="ai-title" id="ai-title" data-i18n="ai.title">ATHR AI</div>
+            <div class="ai-status" id="ai-status" role="status"></div>
+          </div>
+          <div class="ai-head-actions">
+            <button type="button" class="ai-icon-btn" id="ai-clear" data-i18n="ai.clear">Clear Chat</button>
+            <button type="button" class="ai-icon-btn" id="ai-close" data-i18n-attr="aria-label:ai.close;title:ai.close">✕</button>
+          </div>
+        </div>
+        <div class="ai-context" id="ai-context"></div>
+        <div class="ai-log" id="ai-log" role="log" aria-live="polite"></div>
+        <div class="ai-suggest" id="ai-suggest"></div>
+        <form class="ai-form" id="ai-form">
+          <label class="sr-only" for="ai-input" data-i18n="ai.inputLabel">Ask ATHR AI</label>
+          <textarea id="ai-input" class="ai-input" rows="1" maxlength="1000" data-i18n-attr="placeholder:ai.placeholder"></textarea>
+          <button type="submit" class="ai-send" id="ai-send" data-i18n="ai.send">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <!-- Info panel -->
+    <aside id="info-panel" aria-label="Information" data-i18n-attr="aria-label:panel.aria">
+      <h1 class="panel-heading" id="panel-heading" aria-live="polite" data-i18n="section.explore.title">A Mars atlas with gaps left visible</h1>
+      <p class="panel-description" id="panel-description" data-i18n="section.explore.desc">
+        Explore the Martian surface and discover the scientific data available at every location.
+      </p>
+
+      <section class="pick-card" aria-labelledby="pick-title">
+        <div class="pick-title" id="pick-title" data-i18n="pick.title">Selected location</div>
+        <div id="pick-empty" class="pick-empty" data-i18n="pick.empty">Click or tap the Mars surface to select a point.</div>
+        <div id="pick-values" hidden aria-live="polite">
+          <div><span data-i18n="pick.lat">Latitude</span> <strong id="pick-lat" class="num">—</strong></div>
+          <div><span data-i18n="pick.lon">Longitude</span> <strong id="pick-lon" class="num">—</strong></div>
+          <div class="pick-note" data-i18n="pick.note">Planetocentric latitude · East-positive longitude, 0–360°</div>
+
+          <div class="pick-elevation" id="block-elevation">
+            <div><span data-i18n="pick.elevation">Elevation</span> <strong id="pick-elevation" class="num" data-i18n="common.waiting">Waiting…</strong></div>
+            <div class="pick-note" id="pick-elevation-source" data-i18n="pick.elevationSource">Source: NASA MOLA MEGDR 32ppd</div>
+          </div>
+
+          <!-- M4: local slope (hidden until the Slope layer is switched on) -->
+          <div class="pick-elevation" id="block-slope" hidden>
+            <div><span data-i18n="pick.slope">Local slope</span> <strong id="pick-slope" class="num">—</strong></div>
+            <div class="pick-note" id="pick-slope-source" data-i18n="slope.select">Select a location to calculate slope</div>
+          </div>
+
+          <!-- M4: Mars 2020 coverage (hidden until the Coverage layer is switched on) -->
+          <div class="pick-elevation" id="block-coverage" hidden>
+            <div><span data-i18n="pick.coverage">Mission coverage</span> <strong id="pick-waypoints">—</strong></div>
+            <div class="pick-note" id="pick-waypoints-source" data-i18n="cov.sourceDefault">NASA Mars 2020 waypoints</div>
+          </div>
+
+          <button type="button" id="pick-copy" class="pick-copy" data-i18n="pick.copy">Copy coordinates</button>
+        </div>
+      </section>
+
+      <!-- M5: Terrain hazard assessment -->
+      <div class="section-title" data-i18n="terrain.title">Terrain Assessment</div>
+
+      <div class="info-card" id="hazards-card">
+        <div class="info-card-title" data-i18n="hazard.card">Hazard Assessment</div>
+
+        <div class="info-card-description" id="hazard-status" data-i18n="hazard.prompt">
+          Select a Mars location to assess available terrain measurements.
+        </div>
+
+        <div class="pick-elevation">
+          <div><span data-i18n="hazard.classification">Classification:</span> <strong id="hazard-classification">—</strong></div>
+          <div class="pick-note" id="hazard-message" data-i18n="hazard.noAssessment">
+            No assessment available yet.
+          </div>
+        </div>
+
+        <div class="pick-elevation">
+          <div><span data-i18n="hazard.safetyLabel">Safety status:</span> <strong id="hazard-safety" data-i18n="hazard.safety.undetermined">Undetermined</strong></div>
+        </div>
+
+        <div class="pick-elevation">
+          <div><span data-i18n="hazard.elevation">Elevation:</span> <strong id="hazard-elevation" class="num">—</strong></div>
+          <div><span data-i18n="hazard.slope">Local slope:</span> <strong id="hazard-slope" class="num">—</strong></div>
+          <div class="pick-note" id="hazard-slope-reason"></div>
+        </div>
+
+        <div class="pick-note" id="hazard-source" data-i18n="hazard.source">
+          Source: NASA PDS Geosciences Node · MGS MOLA MEGDR 32ppd
+        </div>
+      </div>
+
+      <div class="section-title" data-i18n="explore.title">Explore Mars</div>
+
+      <div class="info-card">
+        <div class="info-card-title" data-i18n="card.surface.title">Global Surface</div>
+        <div class="info-card-description" data-i18n="card.surface.desc">Explore the global Viking color mosaic provided by NASA Mars Trek.</div>
+        <span class="tag" data-i18n="card.surface.tag">IMAGERY SOURCE</span>
+      </div>
+
+      <div class="info-card">
+        <div class="info-card-title" data-i18n="card.elevation.title">Elevation Data</div>
+        <div class="info-card-description" data-i18n="card.elevation.desc">MOLA MEGDR elevation products will be available through the location explorer.</div>
+        <span class="tag">PDS MOLA</span>
+      </div>
+
+      <div class="info-card">
+        <div class="info-card-title" data-i18n="card.missions.title">Mission Observations</div>
+        <div class="info-card-description" data-i18n="card.missions.desc">Perseverance observations and mission waypoints will appear in the discovery panel.</div>
+        <span class="tag" data-i18n="card.missions.tag">NASA MISSION DATA</span>
+      </div>
+
+      <div class="section-title" data-i18n="platform.title">Platform Status</div>
+
+      <div class="info-card">
+        <div class="info-card-title" data-i18n="platform.globe.title">3D Mars Globe</div>
+        <div class="info-card-description" data-i18n="platform.globe.desc">CesiumJS · Mars reference ellipsoid</div>
+        <span class="tag" id="globe-tag">STARTING</span>
+      </div>
+
+      <div class="notice" data-i18n="notice.text">
+        Preliminary orbital data cannot reveal every surface hazard. ATHR is a scientific
+        exploration and planning prototype, not a safety guarantee.
+      </div>
+
+      <div class="panel-footer">
+        <span data-i18n="footer.sources">DATA SOURCES</span><br />
+        NASA Mars Trek · PDS MOLA · USGS<br />
+        NASA Perseverance · NASA M20 Waypoints
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    "use strict";
+
+    (() => {
+      /* ---------- Config ---------- */
+
+      const MARS_RADII = { equatorial: 3396190, polar: 3376200 }; // meters
+      const TREK_URL =
+        "https://trek.nasa.gov/tiles/Mars/EQ/" +
+        "Mars_Viking_MDIM21_ClrMosaic_global_232m/" +
+        "1.0.0/default/default028mm/{z}/{y}/{x}.jpg";
+      const TREK_MAX_LEVEL = 7;          // verify against the Trek tile matrix; avoids 404s past the data
+      const START_HEIGHT = 10_000_000;   // meters
+      const ATHR_API = "http://127.0.0.1:8000";   // change once, in one place, for deployment
+      /* ---------- Language dictionary ----------
+         English is the default. Scientific terms, units, numbers and NASA source
+         names (MOLA, MEGDR, Mars Trek, Perseverance, Sol, Site, Drive...) stay in
+         their original form; only their descriptions are translated. */
+
+      const LANG_STORAGE_KEY = "athr.lang";
+
+      const I18N = {
+        en: {
+          "doc.title": "ATHR | Mars Exploration Platform",
+          "brand.subtitle": "MARS EXPLORATION",
+          "nav.workspace": "Workspace",
+          "nav.explore": "Explore",
+          "nav.layers": "Layers",
+          "nav.plan": "Plan",
+          "nav.hazards": "Hazards",
+          "nav.missions": "Missions",
+          "nav.ai": "AI Assistant",
+          "sidebar.prototype": "ATHR Prototype",
+          "sidebar.build": "Build M4",
+          "status.online": "● Interface online",
+          "status.imageryUnavailable": "● Imagery unavailable",
+
+          "search.placeholder": "Search a name or coordinates: Jezero, 18.4, 77.5",
+          "search.aria": "Search Mars feature name or coordinates",
+          "search.go": "Go",
+          "search.title": "Search",
+          "search.searching": "Searching NASA/JPL Mars Trek…",
+          "search.none": "No matching Mars nomenclature features found in NASA Mars Trek.",
+          "search.failed": "Search failed: {message}",
+          "search.enterAny": "Enter coordinates or a Mars feature name.",
+          "search.enterLatLon": "Enter latitude, longitude.",
+          "search.format": "Use this format: latitude, longitude (18.4, 77.5)",
+          "search.range": "Latitude must be -90 to 90. Longitude must be -180 to 360.",
+
+          "top.details": "Details",
+          "lang.toAr": "Switch language to Arabic",
+          "lang.toEn": "Switch language to English",
+          "map.modeAria": "Map mode",
+          "panel.aria": "Information",
+
+          "globe.loading": "Loading Mars imagery…",
+          "globe.noEngine": "The 3D engine could not be loaded. Check your connection and reload.",
+          "globe.tilesFailed": "Some imagery tiles failed to load. NASA Mars Trek may be unavailable.",
+          "globe.startFailed": "The Mars globe could not be started. Try a browser with WebGL enabled.",
+          "tag.starting": "STARTING",
+          "tag.loading": "LOADING",
+          "tag.ready": "PROTOTYPE READY",
+          "tag.imageryError": "IMAGERY ERROR",
+          "label.mars": "MARS",
+          "label.ellipsoid": "Reference ellipsoid · 3,396 km",
+          "label.imagery": "Surface imagery · NASA Mars Trek",
+
+          "layers.aria": "Map layers",
+          "layer.surface": "Surface",
+          "layer.relief": "Relief",
+          "layer.slope": "Slope",
+          "layer.coverage": "Coverage",
+          "layer.surface.title": "NASA Mars Trek surface imagery",
+          "layer.relief.title": "Selected-location MOLA elevation",
+          "layer.slope.title": "Selected-location MOLA slope estimate",
+          "layer.coverage.title": "NASA Mars 2020 waypoints",
+
+          "section.explore.title": "A Mars atlas with gaps left visible",
+          "section.explore.desc": "Explore the Martian surface and discover the scientific data available at every location.",
+          "section.layers.title": "Scientific Layers",
+          "section.layers.desc": "Surface imagery, plus relief, slope and Mars 2020 coverage for the selected location.",
+          "section.plan.title": "Mission Planning",
+          "section.plan.desc": "Route planning and alternative paths will be implemented in M6.",
+          "section.hazards.title": "Terrain Hazards",
+          "section.hazards.desc": "Regional terrain assessment and hazard classification will be implemented in M5.",
+          "section.missions.title": "Mission Explorer",
+          "section.missions.desc": "Perseverance traverse data and observations will be connected in M6.",
+          "section.aiassistant.title": "Grounded AI Assistant",
+          "section.aiassistant.desc": "Ask about the selected location, its terrain and Perseverance mission data. Answers rely on ATHR's NASA-sourced data; missing data is stated, never guessed.",
+          "ai.title": "ATHR AI",
+          "ai.status.checking": "Checking connection…",
+          "ai.status.ready": "Assistant connected",
+          "ai.status.notConfigured": "Assistant not configured on the server",
+          "ai.status.offline": "Backend unreachable",
+          "ai.clear": "Clear Chat",
+          "ai.close": "Close assistant",
+          "ai.inputLabel": "Ask ATHR AI",
+          "ai.placeholder": "Ask about Mars, this location or the mission…",
+          "ai.send": "Send",
+          "ai.empty": "Ask about the selected location, its terrain or the Perseverance route. Select a point on the globe first for location-specific answers.",
+          "ai.context.none": "No location selected. Answers will be general.",
+          "ai.context.using": "Using selected location:",
+          "ai.suggest.analyze": "Analyze selected location",
+          "ai.suggest.terrain": "Explain terrain",
+          "ai.suggest.waypoints": "Show nearby waypoints",
+          "ai.suggest.route": "Explain mission route",
+          "ai.loading": "Thinking…",
+          "ai.sources": "Sources",
+          "ai.confidence": "Confidence",
+          "ai.gaps": "Data gaps",
+          "ai.conf.data_backed": "Backed by retrieved data",
+          "ai.conf.limited": "Limited (some data missing)",
+          "ai.conf.general": "General (no location data)",
+          "ai.err.notConfigured": "The AI assistant is not configured on the server yet.",
+          "ai.err.provider": "AI service error: {detail}",
+          "ai.err.badResponse": "The assistant returned an unexpected response.",
+          "ai.err.selectLocation": "Select a location on the Mars surface first.",
+
+          "pick.title": "Selected location",
+          "pick.empty": "Click or tap the Mars surface to select a point.",
+          "pick.lat": "Latitude",
+          "pick.lon": "Longitude",
+          "pick.note": "Planetocentric latitude · East-positive longitude, 0–360°",
+          "pick.elevation": "Elevation",
+          "pick.elevationSource": "Source: NASA MOLA MEGDR 32ppd",
+          "pick.slope": "Local slope",
+          "pick.coverage": "Mission coverage",
+          "pick.copy": "Copy coordinates",
+          "pick.copied": "Copied",
+          "pick.copyUnavailable": "Copy not available",
+
+          "common.loading": "Loading…",
+          "common.waiting": "Waiting…",
+          "common.unavailable": "Unavailable",
+          "common.stale": "Cached stale data",
+          "common.live": "Live source data",
+
+          "elev.connecting": "Connecting to NASA MOLA data…",
+          "elev.timeout": "The elevation request timed out. Try again.",
+          "elev.failed": "Elevation could not be retrieved ({message}). Check that the ATHR API is running.",
+
+          "slope.select": "Select a location to calculate slope",
+          "slope.reading": "Reading MOLA neighboring samples",
+          "slope.countsValidated": "Counts validated ({valid}/{total})",
+          "slope.localEstimate": "local estimate",
+
+          "terrain.title": "Terrain Assessment",
+          "hazard.card": "Hazard Assessment",
+          "hazard.prompt": "Select a Mars location to assess available terrain measurements.",
+          "hazard.classification": "Classification:",
+          "hazard.noAssessment": "No assessment available yet.",
+          "hazard.safetyLabel": "Safety status:",
+          "hazard.safety.undetermined": "Undetermined",
+          "hazard.elevation": "Elevation:",
+          "hazard.slope": "Local slope:",
+          "hazard.source": "Source: NASA PDS Geosciences Node · MGS MOLA MEGDR 32ppd",
+          "hazard.loading": "Loading terrain assessment…",
+          "hazard.readingMola": "Reading MOLA measurements…",
+          "hazard.retrieved": "Measurements retrieved.",
+          "hazard.partial": "Partial assessment — some measurements are unavailable.",
+          "hazard.class.pending_thresholds": "pending_thresholds",
+          "hazard.class.insufficient_data": "insufficient_data",
+          "hazard.msg.pending_thresholds": "Measurements are available. Hazard classification requires validated thresholds.",
+          "hazard.msg.insufficient_data": "Insufficient real MOLA measurements for a reliable local slope estimate.",
+          "hazard.noMessage": "No classification message available.",
+          "hazard.localSlope": "Local MOLA slope estimate.",
+          "hazard.slopeInsufficient": "Insufficient slope measurements.",
+          "hazard.unavailable": "Assessment unavailable",
+
+          "explore.title": "Explore Mars",
+          "card.surface.title": "Global Surface",
+          "card.surface.desc": "Explore the global Viking color mosaic provided by NASA Mars Trek.",
+          "card.surface.tag": "IMAGERY SOURCE",
+          "card.elevation.title": "Elevation Data",
+          "card.elevation.desc": "MOLA MEGDR elevation products will be available through the location explorer.",
+          "card.missions.title": "Mission Observations",
+          "card.missions.desc": "Perseverance observations and mission waypoints will appear in the discovery panel.",
+          "card.missions.tag": "NASA MISSION DATA",
+          "platform.title": "Platform Status",
+          "platform.globe.title": "3D Mars Globe",
+          "platform.globe.desc": "CesiumJS · Mars reference ellipsoid",
+          "notice.text": "Preliminary orbital data cannot reveal every surface hazard. ATHR is a scientific exploration and planning prototype, not a safety guarantee.",
+          "footer.sources": "DATA SOURCES",
+
+          "cov.sourceDefault": "NASA Mars 2020 waypoints",
+          "cov.hidden": "Hidden",
+          "cov.selectFirst": "Select a location first",
+          "cov.requires": "Coverage search requires a selected Mars location",
+          "cov.searching": "Searching NASA Mars 2020 waypoints within {radius} km",
+          "cov.none": "No waypoints nearby",
+          "cov.noneDetail": "None within {radius} km. Mars 2020 operates in Jezero Crater (about 18.4° N, 77.5° E)",
+          "cov.found": "{n} waypoints found",
+          "cov.nasaRadius": "NASA M20 · {radius} km radius",
+          "cov.showingNearest": "showing nearest {n}",
+          "cov.checked": "{n} NASA points checked",
+
+          "route.summary": "Perseverance route: {segments} segments · {points} points drawn · {gaps} gaps over {threshold} m",
+          "route.rejected": "Route not drawn: ordering could not be verified",
+          "route.reasonMissing": "{n} points have no numeric Sol/Site/Drive ordering key",
+          "route.reasonDuplicate": "{n} points share a Sol/Site/Drive key with another point",
+          "route.reasonFew": "fewer than 2 ordered points",
+          "route.unavailable": "Route unavailable: {message}",
+
+          "err.http": "HTTP {status}",
+          "err.timeout": "The request timed out. Try again.",
+          "err.backend": "Backend unreachable. Check that the ATHR API is running.",
+
+          "wp.title": "NASA Mars 2020 Waypoint",
+          "wp.site": "Site",
+          "wp.drive": "Drive",
+          "wp.sol": "Sol",
+          "wp.distance": "Distance",
+          "wp.elevation": "Elevation (geoid)",
+          "wp.traverse": "Traverse total"
+        },
+
+        ar: {
+          "doc.title": "ATHR | منصة استكشاف المريخ",
+          "brand.subtitle": "استكشاف المريخ",
+          "nav.workspace": "مساحة العمل",
+          "nav.explore": "استكشاف",
+          "nav.layers": "الطبقات",
+          "nav.plan": "التخطيط",
+          "nav.hazards": "المخاطر",
+          "nav.missions": "المهام",
+          "nav.ai": "المساعد الذكي",
+          "sidebar.prototype": "نموذج ATHR الأولي",
+          "sidebar.build": "الإصدار M4",
+          "status.online": "● الواجهة تعمل",
+          "status.imageryUnavailable": "● صور السطح غير متاحة",
+
+          "search.placeholder": "ابحث باسم أو بإحداثيات: Jezero, 18.4, 77.5",
+          "search.aria": "البحث عن معلم على المريخ بالاسم أو بالإحداثيات",
+          "search.go": "بحث",
+          "search.title": "بحث",
+          "search.searching": "جارٍ البحث في NASA/JPL Mars Trek…",
+          "search.none": "لم يتم العثور على معالم مطابقة في NASA Mars Trek.",
+          "search.failed": "فشل البحث: {message}",
+          "search.enterAny": "أدخل إحداثيات أو اسم معلم على المريخ.",
+          "search.enterLatLon": "أدخل خط العرض وخط الطول.",
+          "search.format": "استخدم هذه الصيغة: خط العرض, خط الطول (18.4, 77.5)",
+          "search.range": "يجب أن يكون خط العرض بين -90 و90، وخط الطول بين -180 و360.",
+
+          "top.details": "التفاصيل",
+          "lang.toAr": "التبديل إلى العربية",
+          "lang.toEn": "التبديل إلى الإنجليزية",
+          "map.modeAria": "وضع الخريطة",
+          "panel.aria": "المعلومات",
+
+          "globe.loading": "جارٍ تحميل صور المريخ…",
+          "globe.noEngine": "تعذّر تحميل محرك العرض ثلاثي الأبعاد. تحقق من اتصالك ثم أعد تحميل الصفحة.",
+          "globe.tilesFailed": "تعذّر تحميل بعض بلاطات الصور. قد تكون خدمة NASA Mars Trek غير متاحة.",
+          "globe.startFailed": "تعذّر تشغيل كرة المريخ. جرّب متصفحًا يدعم WebGL.",
+          "tag.starting": "جارٍ التشغيل",
+          "tag.loading": "جارٍ التحميل",
+          "tag.ready": "النموذج الأولي جاهز",
+          "tag.imageryError": "خطأ في الصور",
+          "label.mars": "المريخ",
+          "label.ellipsoid": "الإهليلج المرجعي · 3,396 km",
+          "label.imagery": "صور السطح · NASA Mars Trek",
+
+          "layers.aria": "طبقات الخريطة",
+          "layer.surface": "السطح",
+          "layer.relief": "التضاريس",
+          "layer.slope": "الانحدار",
+          "layer.coverage": "التغطية",
+          "layer.surface.title": "صور سطح المريخ من NASA Mars Trek",
+          "layer.relief.title": "ارتفاع MOLA عند الموقع المحدد",
+          "layer.slope.title": "تقدير انحدار MOLA عند الموقع المحدد",
+          "layer.coverage.title": "نقاط مسار NASA Mars 2020",
+
+          "section.explore.title": "أطلس للمريخ تبقى فجواته ظاهرة",
+          "section.explore.desc": "استكشف سطح المريخ واطّلع على البيانات العلمية المتاحة عند كل موقع.",
+          "section.layers.title": "الطبقات العلمية",
+          "section.layers.desc": "صور السطح، إضافةً إلى الارتفاع والانحدار وتغطية Mars 2020 للموقع المحدد.",
+          "section.plan.title": "تخطيط المهام",
+          "section.plan.desc": "سيتم تنفيذ تخطيط المسارات والمسارات البديلة في M6.",
+          "section.hazards.title": "مخاطر التضاريس",
+          "section.hazards.desc": "سيتم تنفيذ التقييم الإقليمي للتضاريس وتصنيف المخاطر في M5.",
+          "section.missions.title": "مستكشف المهام",
+          "section.missions.desc": "سيتم ربط بيانات مسار Perseverance وملاحظاته في M6.",
+          "section.aiassistant.title": "المساعد الذكي المستند إلى الأدلة",
+          "section.aiassistant.desc": "اسأل عن الموقع المحدد وتضاريسه وبيانات مهمة Perseverance. تعتمد الإجابات على بيانات ATHR المستمدة من NASA، وتُذكر البيانات الناقصة صراحةً ولا تُخمَّن.",
+          "ai.title": "ATHR AI",
+          "ai.status.checking": "جارٍ فحص الاتصال…",
+          "ai.status.ready": "المساعد متصل",
+          "ai.status.notConfigured": "المساعد غير مُعدّ على الخادم",
+          "ai.status.offline": "تعذّر الوصول إلى الخادم",
+          "ai.clear": "مسح المحادثة",
+          "ai.close": "إغلاق المساعد",
+          "ai.inputLabel": "اسأل ATHR AI",
+          "ai.placeholder": "اسأل عن المريخ أو هذا الموقع أو المهمة…",
+          "ai.send": "إرسال",
+          "ai.empty": "اسأل عن الموقع المحدد أو تضاريسه أو مسار Perseverance. حدّد نقطة على الكرة أولًا للحصول على إجابات خاصة بالموقع.",
+          "ai.context.none": "لا يوجد موقع محدد. ستكون الإجابات عامة.",
+          "ai.context.using": "الموقع المستخدم:",
+          "ai.suggest.analyze": "حلّل الموقع المحدد",
+          "ai.suggest.terrain": "اشرح التضاريس",
+          "ai.suggest.waypoints": "اعرض نقاط المهمات القريبة",
+          "ai.suggest.route": "اشرح مسار المهمة",
+          "ai.loading": "جارٍ التفكير…",
+          "ai.sources": "المصادر",
+          "ai.confidence": "درجة الثقة",
+          "ai.gaps": "البيانات الناقصة",
+          "ai.conf.data_backed": "مبنية على بيانات تم جلبها",
+          "ai.conf.limited": "محدودة (بعض البيانات ناقصة)",
+          "ai.conf.general": "عامة (بدون بيانات موقع)",
+          "ai.err.notConfigured": "المساعد الذكي غير مُعدّ على الخادم بعد.",
+          "ai.err.provider": "خطأ في خدمة الذكاء الاصطناعي: {detail}",
+          "ai.err.badResponse": "أعاد المساعد استجابة غير متوقعة.",
+          "ai.err.selectLocation": "حدّد موقعًا على سطح المريخ أولًا.",
+
+          "pick.title": "الموقع المحدد",
+          "pick.empty": "انقر أو المس سطح المريخ لتحديد نقطة.",
+          "pick.lat": "خط العرض",
+          "pick.lon": "خط الطول",
+          "pick.note": "خط عرض مركزي الكوكب · خط طول موجب شرقًا، 0–360°",
+          "pick.elevation": "الارتفاع",
+          "pick.elevationSource": "المصدر: NASA MOLA MEGDR 32ppd",
+          "pick.slope": "الانحدار المحلي",
+          "pick.coverage": "تغطية المهمة",
+          "pick.copy": "نسخ الإحداثيات",
+          "pick.copied": "تم النسخ",
+          "pick.copyUnavailable": "النسخ غير متاح",
+
+          "common.loading": "جارٍ التحميل…",
+          "common.waiting": "في الانتظار…",
+          "common.unavailable": "غير متاح",
+          "common.stale": "بيانات مخزّنة قديمة",
+          "common.live": "بيانات مباشرة من المصدر",
+
+          "elev.connecting": "جارٍ الاتصال ببيانات NASA MOLA…",
+          "elev.timeout": "انتهت مهلة طلب الارتفاع. حاول مرة أخرى.",
+          "elev.failed": "تعذّر جلب الارتفاع ({message}). تأكد من تشغيل ATHR API.",
+
+          "slope.select": "حدّد موقعًا لحساب الانحدار",
+          "slope.reading": "جارٍ قراءة عيّنات MOLA المجاورة",
+          "slope.countsValidated": "تم التحقق من العدّادات ({valid}/{total})",
+          "slope.localEstimate": "تقدير محلي",
+
+          "terrain.title": "تقييم التضاريس",
+          "hazard.card": "تقييم المخاطر",
+          "hazard.prompt": "حدّد موقعًا على المريخ لتقييم قياسات التضاريس المتاحة.",
+          "hazard.classification": "التصنيف:",
+          "hazard.noAssessment": "لا يوجد تقييم متاح بعد.",
+          "hazard.safetyLabel": "حالة السلامة:",
+          "hazard.safety.undetermined": "غير محدّدة",
+          "hazard.elevation": "الارتفاع:",
+          "hazard.slope": "الانحدار المحلي:",
+          "hazard.source": "المصدر: NASA PDS Geosciences Node · MGS MOLA MEGDR 32ppd",
+          "hazard.loading": "جارٍ تحميل تقييم التضاريس…",
+          "hazard.readingMola": "جارٍ قراءة قياسات MOLA…",
+          "hazard.retrieved": "تم جلب القياسات.",
+          "hazard.partial": "تقييم جزئي — بعض القياسات غير متاحة.",
+          "hazard.class.pending_thresholds": "بانتظار العتبات المعتمدة",
+          "hazard.class.insufficient_data": "بيانات غير كافية",
+          "hazard.msg.pending_thresholds": "القياسات متاحة، لكن تصنيف المخاطر يتطلب عتبات تم التحقق منها علميًا.",
+          "hazard.msg.insufficient_data": "قياسات MOLA الحقيقية غير كافية لتقدير موثوق للانحدار المحلي.",
+          "hazard.noMessage": "لا توجد رسالة تصنيف متاحة.",
+          "hazard.localSlope": "تقدير محلي للانحدار من MOLA.",
+          "hazard.slopeInsufficient": "قياسات الانحدار غير كافية.",
+          "hazard.unavailable": "التقييم غير متاح",
+
+          "explore.title": "استكشاف المريخ",
+          "card.surface.title": "السطح العالمي",
+          "card.surface.desc": "استكشف فسيفساء Viking اللونية العالمية المقدمة من NASA Mars Trek.",
+          "card.surface.tag": "مصدر الصور",
+          "card.elevation.title": "بيانات الارتفاع",
+          "card.elevation.desc": "ستتاح منتجات الارتفاع MOLA MEGDR عبر مستكشف المواقع.",
+          "card.missions.title": "ملاحظات المهمة",
+          "card.missions.desc": "ستظهر ملاحظات Perseverance ونقاط مسار المهمة في لوحة الاكتشاف.",
+          "card.missions.tag": "بيانات مهمات NASA",
+          "platform.title": "حالة المنصة",
+          "platform.globe.title": "كرة المريخ ثلاثية الأبعاد",
+          "platform.globe.desc": "CesiumJS · الإهليلج المرجعي للمريخ",
+          "notice.text": "لا تستطيع البيانات المدارية الأولية كشف كل مخاطر السطح. ATHR نموذج أولي للاستكشاف والتخطيط العلمي، وليس ضمانًا للسلامة.",
+          "footer.sources": "مصادر البيانات",
+
+          "cov.sourceDefault": "نقاط مسار NASA Mars 2020",
+          "cov.hidden": "مخفية",
+          "cov.selectFirst": "حدّد موقعًا أولًا",
+          "cov.requires": "يتطلب البحث عن التغطية موقعًا محددًا على المريخ",
+          "cov.searching": "جارٍ البحث عن نقاط مسار NASA Mars 2020 ضمن {radius} km",
+          "cov.none": "لا توجد نقاط مسار قريبة",
+          "cov.noneDetail": "لا توجد نقاط ضمن {radius} km. تعمل Mars 2020 في فوهة Jezero (نحو 18.4° N، 77.5° E)",
+          "cov.found": "تم العثور على {n} نقطة مسار",
+          "cov.nasaRadius": "NASA M20 · نصف القطر {radius} km",
+          "cov.showingNearest": "عرض أقرب {n}",
+          "cov.checked": "تم فحص {n} نقطة من NASA",
+
+          "route.summary": "مسار Perseverance: {segments} مقاطع · {points} نقطة مرسومة · {gaps} فجوات أكبر من {threshold} m",
+          "route.rejected": "لم يُرسم المسار: تعذّر التحقق من الترتيب",
+          "route.reasonMissing": "{n} نقطة بلا مفتاح ترتيب رقمي (Sol/Site/Drive)",
+          "route.reasonDuplicate": "{n} نقطة تشترك في مفتاح Sol/Site/Drive مع نقطة أخرى",
+          "route.reasonFew": "أقل من نقطتين مرتّبتين",
+          "route.unavailable": "المسار غير متاح: {message}",
+
+          "err.http": "HTTP {status}",
+          "err.timeout": "انتهت مهلة الطلب. حاول مرة أخرى.",
+          "err.backend": "تعذّر الوصول إلى الخادم. تأكد من تشغيل ATHR API.",
+
+          "wp.title": "نقطة مسار NASA Mars 2020",
+          "wp.site": "الموقع (Site)",
+          "wp.drive": "القيادة (Drive)",
+          "wp.sol": "Sol",
+          "wp.distance": "المسافة",
+          "wp.elevation": "الارتفاع (geoid)",
+          "wp.traverse": "إجمالي المسافة المقطوعة"
+        }
+      };
+
+      /* ---------- Language engine ---------- */
+
+      let lang = "en";   // English is always the default language
+      try {
+        const saved = localStorage.getItem(LANG_STORAGE_KEY);
+        if (saved === "en" || saved === "ar") lang = saved;
+      } catch {}
+
+      const has = (key) => Object.prototype.hasOwnProperty.call(I18N.en, key);
+
+      function t(key, params) {
+        let text = (I18N[lang] && I18N[lang][key]) ?? I18N.en[key];
+        if (text === undefined) {
+          console.warn("ATHR i18n: missing key", key);
+          return key;
+        }
+        if (params) {
+          text = text.replace(/\{(\w+)\}/g, (match, name) =>
+            params[name] !== undefined ? String(params[name]) : match
+          );
+        }
+        return text;
+      }
+
+      // Error that carries a translation key, so it is re-translated if the language changes.
+      class UiError extends Error {
+        constructor(key, params) {
+          super(key);
+          this.i18nKey = key;
+          this.i18nParams = params;
+        }
+      }
+
+      const errorText = (error) =>
+        error && error.i18nKey
+          ? t(error.i18nKey, error.i18nParams)
+          : String((error && error.message) || error);
+
+      // Dynamic text: each element remembers how to rebuild its text, so a language
+      // switch re-renders every message that is currently on screen.
+      const bound = new Map();
+
+      function bind(el, render) {
+        if (!el) return;
+        delete el.dataset.i18n;
+        bound.set(el, render);
+        el.textContent = render();
+      }
+
+      const setKey = (el, key, params) => bind(el, () => t(key, params));
+
+      // Language-independent text (numbers, names): detach any previous binding.
+      function setText(el, text) {
+        if (!el) return;
+        delete el.dataset.i18n;
+        bound.delete(el);
+        el.textContent = text;
+      }
+
+      function getBound(el) {
+        const render = bound.get(el);
+        if (render) return render;
+        const text = el.textContent;
+        return () => text;
+      }
+
+      function refreshBound() {
+        for (const [el, render] of bound) {
+          if (!el.isConnected) { bound.delete(el); continue; }
+          el.textContent = render();
+        }
+      }
+
+      /* ---------- Helpers ---------- */
+
+      const $ = (id) => document.getElementById(id);
+      const statusEl = $("globe-status");
+      const sidebarStatus = $("system-status");
+      const globeTag = $("globe-tag");
+      const langToggle = $("lang-toggle");
+
+      let globeState = { key: "globe.loading", isError: false, starting: true };
+
+      function renderGlobeStatus() {
+        const { key, isError, starting } = globeState;
+        statusEl.hidden = !key;
+        statusEl.textContent = key ? t(key) : "";
+        statusEl.classList.toggle("is-error", isError);
+        sidebarStatus.classList.toggle("is-error", isError);
+        sidebarStatus.textContent = t(isError ? "status.imageryUnavailable" : "status.online");
+        globeTag.textContent = t(
+          isError ? "tag.imageryError" : starting ? "tag.starting" : key ? "tag.loading" : "tag.ready"
+        );
+      }
+
+      // `key` is a dictionary key (or "" to hide the message).
+      function setGlobeStatus(key, isError = false) {
+        globeState = { key: key || null, isError, starting: false };
+        renderGlobeStatus();
+      }
+
+      const languageListeners = [];
+
+      function applyLanguage() {
+        const root = document.documentElement;
+        root.lang = lang;
+        root.dir = lang === "ar" ? "rtl" : "ltr";
+        document.title = t("doc.title");
+
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          el.textContent = t(el.dataset.i18n);
+        });
+
+        document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
+          for (const pair of el.dataset.i18nAttr.split(";")) {
+            const [attr, key] = pair.split(":");
+            el.setAttribute(attr, t(key));
+          }
+        });
+
+        refreshBound();
+        renderGlobeStatus();
+
+        const target = lang === "en" ? "ar" : "en";
+        langToggle.textContent = target === "ar" ? "العربية" : "English";
+        langToggle.lang = target;
+        langToggle.setAttribute("aria-label", t(target === "ar" ? "lang.toAr" : "lang.toEn"));
+
+        for (const listener of languageListeners) listener();
+      }
+
+      function setLanguage(next) {
+        if (next !== "en" && next !== "ar") return;
+        lang = next;
+        try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch {}
+        applyLanguage();
+      }
+
+      langToggle.addEventListener("click", () => setLanguage(lang === "en" ? "ar" : "en"));
+
+      /* ---------- Navigation (works even if Cesium fails) ---------- */
+
+      const navItems = document.querySelectorAll(".nav-item");
+      const sectionSlug = (name) => name.toLowerCase().replace(/\s+/g, "");
+
+      navItems.forEach((button) => {
+        button.addEventListener("click", () => {
+          const slug = sectionSlug(button.dataset.section);
+          if (!has(`section.${slug}.title`)) return;
+
+          navItems.forEach((item) => item.removeAttribute("aria-current"));
+          button.setAttribute("aria-current", "true");
+
+          setKey($("panel-heading"), `section.${slug}.title`);
+          setKey($("panel-description"), `section.${slug}.desc`);
+          setPanel(true); // on small screens, show the result
+        });
+      });
+
+      applyLanguage();
+
+      /* ---------- Info panel drawer (small screens) ---------- */
+
+      const panel = $("info-panel");
+      const toggle = $("panel-toggle");
+      const smallScreen = window.matchMedia("(max-width: 1050px)");
+
+      function setPanel(open) {
+        if (!smallScreen.matches) return;
+        panel.classList.toggle("open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+      }
+
+      toggle.addEventListener("click", () => setPanel(!panel.classList.contains("open")));
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") setPanel(false); });
+      smallScreen.addEventListener("change", () => {
+        panel.classList.remove("open");
+        toggle.setAttribute("aria-expanded", "false");
+      });
+
+      /* ---------- M7: AI Assistant ---------- */
+
+      const AI_TIMEOUT_MS = 60000;
+      const AI_HISTORY_MESSAGES = 6;      // matches the backend limit
+      const AI_TURN_MAX_CHARS = 2000;     // matches the backend limit per history message
+
+      // The globe code below installs the real getter: () => { lat, lon, name } | null
+      let getSelected = () => null;
+
+      const aiEls = {
+        panel: $("ai-chat"), log: $("ai-log"), form: $("ai-form"), input: $("ai-input"),
+        send: $("ai-send"), clear: $("ai-clear"), close: $("ai-close"), status: $("ai-status"),
+        context: $("ai-context"), suggest: $("ai-suggest"),
+        open: document.querySelector('.nav-item[data-section="AI Assistant"]')
+      };
+
+      const aiSuggestions = [
+        { key: "ai.suggest.analyze", needsLocation: true },
+        { key: "ai.suggest.terrain", needsLocation: true },
+        { key: "ai.suggest.waypoints", needsLocation: true },
+        { key: "ai.suggest.route", needsLocation: false }
+      ];
+
+      let aiMessages = [];    // what is shown on screen
+      let aiHistory = [];     // successful turns sent back to the backend as context
+      let aiBusy = false;
+      let aiController = null;
+
+      function setAiStatus(key, cls) {
+        setKey(aiEls.status, key);
+        aiEls.status.classList.toggle("is-ok", cls === "is-ok");
+        aiEls.status.classList.toggle("is-warn", cls === "is-warn");
+      }
+
+      async function checkAiStatus() {
+        setAiStatus("ai.status.checking", "");
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          const response = await fetch(`${ATHR_API}/api/assistant/status`, { signal: controller.signal });
+          const data = await response.json();
+          if (data && data.configured) setAiStatus("ai.status.ready", "is-ok");
+          else setAiStatus("ai.status.notConfigured", "is-warn");
+        } catch {
+          setAiStatus("ai.status.offline", "is-warn");
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      function renderAiContext() {
+        const sel = getSelected();
+        aiEls.context.replaceChildren();
+        if (!sel) {
+          aiEls.context.textContent = t("ai.context.none");
+          return;
+        }
+        const coords = document.createElement("strong");
+        coords.className = "num";
+        coords.textContent =
+          `${Math.abs(sel.lat).toFixed(4)}° ${sel.lat >= 0 ? "N" : "S"} · ${sel.lon.toFixed(4)}° E` +
+          (sel.name ? ` · ${sel.name}` : "");
+        aiEls.context.append(`${t("ai.context.using")} `, coords);
+      }
+
+      function renderAiSuggest() {
+        aiEls.suggest.replaceChildren();
+        for (const item of aiSuggestions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "ai-chip";
+          button.textContent = t(item.key);
+          button.disabled = aiBusy;
+          button.addEventListener("click", () => {
+            if (item.needsLocation && !getSelected()) {
+              aiMessages.push({ role: "error", error: new UiError("ai.err.selectLocation") });
+              renderAiLog();
+              return;
+            }
+            sendAiMessage(t(item.key));
+          });
+          aiEls.suggest.appendChild(button);
+        }
+      }
+
+      // Same source listed several times (one per data item) is shown once.
+      function groupAiSources(sources) {
+        const groups = new Map();
+        for (const s of Array.isArray(sources) ? sources : []) {
+          if (!s || !s.name) continue;
+          const key = `${s.name}|${s.url || ""}`;
+          if (!groups.has(key)) groups.set(key, { name: String(s.name), url: s.url, data: [] });
+          const group = groups.get(key);
+          if (s.data && !group.data.includes(String(s.data))) group.data.push(String(s.data));
+        }
+        return [...groups.values()];
+      }
+
+      function metaRow(label) {
+        const row = document.createElement("div");
+        row.className = "ai-meta-row";
+        const b = document.createElement("b");
+        b.textContent = `${label}: `;
+        row.appendChild(b);
+        return row;
+      }
+
+      function buildAssistantNode(message) {
+        const node = document.createElement("div");
+        node.className = "ai-msg assistant";
+        node.dir = "auto";
+        node.append(message.text);
+
+        const meta = message.meta;
+        if (!meta) return node;
+
+        const box = document.createElement("div");
+        box.className = "ai-meta";
+        box.dir = "auto";
+
+        const confKey = `ai.conf.${meta.confidence}`;
+        if (meta.confidence && has(confKey)) {
+          const row = metaRow(t("ai.confidence"));
+          row.append(t(confKey));
+          box.appendChild(row);
+        }
+
+        if (meta.gaps.length) {
+          const row = metaRow(t("ai.gaps"));
+          row.append(meta.gaps.join(" · "));
+          box.appendChild(row);
+        }
+
+        const groups = groupAiSources(meta.sources);
+        if (groups.length) {
+          const row = metaRow(t("ai.sources"));
+          for (const group of groups) {
+            const line = document.createElement("div");
+            if (typeof group.url === "string" && group.url.startsWith("https://")) {
+              const link = document.createElement("a");
+              link.href = group.url;
+              link.target = "_blank";
+              link.rel = "noopener noreferrer";
+              link.textContent = group.name;
+              line.appendChild(link);
+            } else {
+              line.append(group.name);
+            }
+            if (group.data.length) line.append(` — ${group.data.join("; ")}`);
+            row.appendChild(line);
+          }
+          box.appendChild(row);
+        }
+
+        if (box.childNodes.length) node.appendChild(box);
+        return node;
+      }
+
+      function renderAiLog() {
+        aiEls.log.replaceChildren();
+
+        if (!aiMessages.length) {
+          const empty = document.createElement("div");
+          empty.className = "ai-empty";
+          empty.textContent = t("ai.empty");
+          aiEls.log.appendChild(empty);
+        }
+
+        for (const message of aiMessages) {
+          if (message.role === "assistant") {
+            aiEls.log.appendChild(buildAssistantNode(message));
+            continue;
+          }
+          const node = document.createElement("div");
+          node.className = `ai-msg ${message.role}`;
+          if (message.role === "user") {
+            node.dir = "auto";
+            node.textContent = message.text;
+          } else if (message.role === "loading") {
+            node.textContent = t("ai.loading");
+          } else {
+            node.textContent = errorText(message.error);
+          }
+          aiEls.log.appendChild(node);
+        }
+
+        aiEls.log.scrollTop = aiEls.log.scrollHeight;
+        aiEls.send.disabled = aiBusy;
+        for (const chip of aiEls.suggest.children) chip.disabled = aiBusy;
+      }
+
+      function aiHttpError(status, data) {
+        const detail = data && data.detail;
+        if (status === 503) return new UiError("ai.err.notConfigured");
+        if (status === 502 && typeof detail === "string") return new UiError("ai.err.provider", { detail });
+        if (Array.isArray(detail)) return new Error(detail.map((d) => d.msg).join("; "));
+        if (typeof detail === "string") return new Error(detail);
+        return new UiError("err.http", { status });
+      }
+
+      async function sendAiMessage(rawText) {
+        const text = String(rawText).trim();
+        if (!text || aiBusy) return;
+
+        aiMessages.push({ role: "user", text }, { role: "loading" });
+        aiBusy = true;
+        renderAiLog();
+
+        const body = { message: text, language: lang, history: aiHistory.slice(-AI_HISTORY_MESSAGES) };
+        const sel = getSelected();
+        if (sel) {
+          body.context = { latitude: sel.lat, longitude: sel.lon };
+          if (sel.name) body.context.site_name = String(sel.name).slice(0, 120);
+        }
+
+        const controller = new AbortController();
+        aiController = controller;
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; controller.abort(); }, AI_TIMEOUT_MS);
+
+        try {
+          const response = await fetch(`${ATHR_API}/api/assistant`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+
+          let data = null;
+          try { data = await response.json(); } catch {}
+
+          if (!response.ok) throw aiHttpError(response.status, data);
+          if (!data || typeof data.answer !== "string") throw new UiError("ai.err.badResponse");
+          if (aiController !== controller) return;   // chat was cleared meanwhile
+
+          aiMessages = aiMessages.filter((m) => m.role !== "loading");
+          aiMessages.push({
+            role: "assistant",
+            text: data.answer,
+            meta: {
+              confidence: data.confidence,
+              gaps: Array.isArray(data.data_gaps) ? data.data_gaps.map(String) : [],
+              sources: data.sources
+            }
+          });
+          aiHistory.push(
+            { role: "user", content: text.slice(0, AI_TURN_MAX_CHARS) },
+            { role: "assistant", content: data.answer.slice(0, AI_TURN_MAX_CHARS) }
+          );
+          aiHistory = aiHistory.slice(-AI_HISTORY_MESSAGES);
+        } catch (error) {
+          if (aiController !== controller) return;
+          let shown = error;
+          if (error && error.name === "AbortError") shown = new UiError("err.timeout");
+          else if (error instanceof TypeError) shown = new UiError("err.backend");
+          aiMessages = aiMessages.filter((m) => m.role !== "loading");
+          aiMessages.push({ role: "error", error: shown });
+        } finally {
+          clearTimeout(timer);
+          if (aiController === controller) {
+            aiController = null;
+            aiBusy = false;
+            renderAiLog();
+          }
+        }
+      }
+
+      function clearAiChat() {
+        if (aiController) aiController.abort();
+        aiController = null;
+        aiBusy = false;
+        aiMessages = [];
+        aiHistory = [];
+        renderAiLog();
+      }
+
+      function setAiOpen(open) {
+        aiEls.panel.hidden = !open;
+        aiEls.open.setAttribute("aria-expanded", String(open));
+        if (!open) return;
+        setPanel(false);          // keep the info drawer from covering the chat on small screens
+        renderAiContext();
+        checkAiStatus();
+        aiEls.input.focus();
+      }
+
+      aiEls.open.setAttribute("aria-controls", "ai-chat");
+      aiEls.open.setAttribute("aria-expanded", "false");
+      aiEls.open.addEventListener("click", () => setAiOpen(aiEls.panel.hidden));
+      aiEls.close.addEventListener("click", () => { setAiOpen(false); aiEls.open.focus(); });
+      aiEls.clear.addEventListener("click", clearAiChat);
+      aiEls.panel.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { setAiOpen(false); aiEls.open.focus(); }
+      });
+
+      aiEls.form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = aiEls.input.value;
+        if (!text.trim() || aiBusy) return;
+        aiEls.input.value = "";
+        aiEls.input.style.height = "auto";
+        sendAiMessage(text);
+      });
+
+      aiEls.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+          e.preventDefault();
+          aiEls.form.requestSubmit();
+        }
+      });
+      aiEls.input.addEventListener("input", () => {
+        aiEls.input.style.height = "auto";
+        aiEls.input.style.height = `${Math.min(aiEls.input.scrollHeight, 110)}px`;
+      });
+
+      document.addEventListener("athr:selection", renderAiContext);
+      languageListeners.push(() => { renderAiSuggest(); renderAiContext(); renderAiLog(); });
+
+      setAiStatus("ai.status.checking", "");
+      renderAiSuggest();
+      renderAiContext();
+      renderAiLog();
+
+      /* ---------- Globe ---------- */
+
+      if (typeof Cesium === "undefined") {
+        setGlobeStatus("globe.noEngine", true);
+        console.error("CesiumJS failed to load.");
+        return;
+      }
+
+      try {
+        const mars = new Cesium.Ellipsoid(
+          MARS_RADII.equatorial,
+          MARS_RADII.equatorial,
+          MARS_RADII.polar
+        );
+
+        const tilingScheme = new Cesium.GeographicTilingScheme({
+          ellipsoid: mars,
+          numberOfLevelZeroTilesX: 2,
+          numberOfLevelZeroTilesY: 1
+        });
+
+        const viewer = new Cesium.Viewer("cesiumContainer", {
+          globe: new Cesium.Globe(mars),
+          mapProjection: new Cesium.GeographicProjection(mars),
+          terrainProvider: new Cesium.EllipsoidTerrainProvider({ ellipsoid: mars }),
+          baseLayer: false,
+          baseLayerPicker: false,
+          geocoder: false,
+          animation: false,
+          timeline: false,
+          homeButton: false,
+          sceneModePicker: false,
+          navigationHelpButton: false,
+          fullscreenButton: false,
+          infoBox: false,
+          selectionIndicator: false,
+          skyBox: false,
+          skyAtmosphere: false,
+          requestRenderMode: true,        // render only when something changes
+          maximumRenderTimeChange: Infinity
+        });
+
+        const { scene } = viewer;
+        languageListeners.push(() => scene.requestRender());
+        scene.globe.baseColor = Cesium.Color.fromCssColorString("#8d5135");
+        scene.globe.showGroundAtmosphere = false;   // Earth-style atmosphere does not apply to Mars
+        scene.backgroundColor = Cesium.Color.fromCssColorString("#0b0d10");
+        viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
+
+        const controls = scene.screenSpaceCameraController;
+        controls.minimumZoomDistance = 1;            // closest possible zoom (was 50 km originally)
+        controls.maximumZoomDistance = 40_000_000;
+
+        // Request finer imagery tiles sooner when zooming in (Cesium default is 2).
+        scene.globe.maximumScreenSpaceError = 1.5;
+
+        const provider = new Cesium.UrlTemplateImageryProvider({
+          url: TREK_URL,
+          tilingScheme,
+          minimumLevel: 0,
+          maximumLevel: TREK_MAX_LEVEL,
+          tileWidth: 256,
+          tileHeight: 256,
+          enablePickFeatures: false,
+          credit: "Imagery: NASA Mars Trek (Viking MDIM 2.1)"
+        });
+
+        let tileErrors = 0;
+        provider.errorEvent.addEventListener(() => {
+          tileErrors += 1;
+          if (tileErrors === 5) {
+            setGlobeStatus("globe.tilesFailed", true);
+          }
+        });
+
+        viewer.imageryLayers.addImageryProvider(provider);
+
+        scene.globe.tileLoadProgressEvent.addEventListener((pending) => {
+          if (pending === 0 && tileErrors < 5) setGlobeStatus("");
+        });
+
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(0, 0, START_HEIGHT, mars)
+        });
+
+        /* ---------- M2: coordinate picking ---------- */
+
+        const pickEls = {
+          empty: $("pick-empty"), values: $("pick-values"),
+          lat: $("pick-lat"), lon: $("pick-lon"),
+          copy: $("pick-copy"), chip: $("pick-chip"),
+          elevation: $("pick-elevation"), elevationSource: $("pick-elevation-source")
+        };
+        let selected = null;   // { lat, lon, cartesian } in Mars body-fixed coordinates
+        let marker = null;
+        // M7: lets the AI Assistant read the currently selected point.
+        getSelected = () => (selected ? { lat: selected.lat, lon: selected.lon, name: selected.name || null } : null);
+
+        // Planetocentric latitude (from the planet's center), east-positive longitude 0–360.
+        const toPlanetocentric = (c) => ({
+          lat: Cesium.Math.toDegrees(Math.atan2(c.z, Math.hypot(c.x, c.y))),
+          lon: (Cesium.Math.toDegrees(Math.atan2(c.y, c.x)) + 360) % 360
+        });
+
+        // 4 decimals ≈ 6 m on Mars, which already exceeds the 232 m imagery resolution.
+        const formatPoint = ({ lat, lon }) => ({
+          lat: `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? "N" : "S"}`,
+          lon: `${lon.toFixed(4)}° E`
+        });
+
+        /* ---------- M3: NASA MOLA elevation ---------- */
+
+        const ELEVATION_TIMEOUT_MS = 20000;
+
+        let elevationRequestId = 0;
+        let elevationController = null;
+
+        async function fetchElevation(lat, lon) {
+          const requestId = ++elevationRequestId;
+
+          // Cancel the previous request when a new point is selected.
+          if (elevationController) elevationController.abort();
+
+          const controller = new AbortController();
+          elevationController = controller;
+
+          const timer = setTimeout(
+            () => controller.abort(),
+            ELEVATION_TIMEOUT_MS
+          );
+
+          setKey(pickEls.elevation, "common.loading");
+          setKey(pickEls.elevationSource, "elev.connecting");
+
+          try {
+            const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+            const response = await fetch(`${ATHR_API}/api/elevation?${params}`, {
+              signal: controller.signal
+            });
+
+            if (!response.ok) {
+              let detail = null;
+              try { detail = (await response.json()).detail || null; } catch {}
+              throw detail
+                ? new Error(detail)
+                : new UiError("err.http", { status: response.status });
+            }
+
+            const data = await response.json();
+            if (requestId !== elevationRequestId) return;   // a newer point was selected
+
+            setText(pickEls.elevation, `${data.elevation.value_m.toLocaleString("en-US")} m`);
+            setText(
+              pickEls.elevationSource,
+              `${data.source.product} · ~${data.source.resolution_m} m/pixel · ${data.elevation.datum}`
+            );
+          } catch (error) {
+            if (requestId !== elevationRequestId) return;   // aborted on purpose
+            console.error("ATHR MOLA error:", error);
+
+            setKey(pickEls.elevation, "common.unavailable");
+            bind(pickEls.elevationSource, () =>
+              error.name === "AbortError"
+                ? t("elev.timeout")
+                : t("elev.failed", { message: errorText(error) })
+            );
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        /* ======================================================
+           M4 — Slope, Relief information and Mars 2020 Coverage
+           ====================================================== */
+
+        const M4_TIMEOUT_MS = 45000;
+        const COVERAGE_RADIUS_KM = 25;
+
+        const m4Els = {
+          slope: $("pick-slope"),
+          slopeSource: $("pick-slope-source"),
+          waypoints: $("pick-waypoints"),
+          waypointsSource: $("pick-waypoints-source"),
+
+          blockElevation: $("block-elevation"),
+          blockSlope: $("block-slope"),
+          blockCoverage: $("block-coverage"),
+
+          hazardStatus: $("hazard-status"),
+          hazardClassification: $("hazard-classification"),
+          hazardMessage: $("hazard-message"),
+          hazardSafety: $("hazard-safety"),
+          hazardElevation: $("hazard-elevation"),
+          hazardSlope: $("hazard-slope"),
+          hazardSlopeReason: $("hazard-slope-reason"),
+          hazardSource: $("hazard-source"),
+
+          surfaceButton: $("layer-surface"),
+          reliefButton: $("layer-relief"),
+          slopeButton: $("layer-slope"),
+          coverageButton: $("layer-coverage")
+        };
+
+        let slopeRequestId = 0;
+        let coverageRequestId = 0;
+        let coverageEntities = [];
+        let slopeController = null;      // cancel the previous request when a new point is picked
+        let coverageController = null;
+
+        const isActive = (button) => button.getAttribute("aria-pressed") === "true";
+        const setLayerState = (button, active) => button.setAttribute("aria-pressed", String(active));
+
+        const escapeHtml = (value) =>
+          String(value ?? "—").replace(/[&<>"']/g, (ch) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+          }[ch]));
+
+        // Same planetocentric convention as the picker, so waypoints sit exactly
+        // where a click on the same coordinates would put the marker.
+        function fromPlanetocentric(lat, lon) {
+          const phi = Cesium.Math.toRadians(lat);
+          const lambda = Cesium.Math.toRadians(lon);
+          const direction = new Cesium.Cartesian3(
+            Math.cos(phi) * Math.cos(lambda),
+            Math.cos(phi) * Math.sin(lambda),
+            Math.sin(phi)
+          );
+          return mars.scaleToGeocentricSurface(direction);
+        }
+
+        async function fetchJson(url, options = {}, controller = new AbortController()) {
+          const timer = setTimeout(() => controller.abort(), M4_TIMEOUT_MS);
+
+          try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+
+            let data = null;
+            try { data = await response.json(); } catch {}
+
+            if (!response.ok) {
+              const detail = data && data.detail;
+              if (Array.isArray(detail)) throw new Error(detail.map((d) => d.msg).join("; "));
+              if (detail) throw new Error(String(detail));
+              throw new UiError("err.http", { status: response.status });
+            }
+            return data;
+          } catch (error) {
+            if (error.name === "AbortError") throw new UiError("err.timeout");
+            if (error instanceof TypeError) throw new UiError("err.backend");
+            throw error;
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        function clearCoverageEntities() {
+          for (const entity of coverageEntities) viewer.entities.remove(entity);
+          coverageEntities = [];
+          scene.requestRender();
+        }
+
+        /* ---------- M6: Mission Route Rendering ----------
+           NASA Mars 2020 waypoints, ordered by Sol -> Site -> Drive.
+           Segments are separated at gaps > 200 meters (set by the backend). */
+
+        let missionRouteEntities = [];
+        let missionRouteController = null;
+        let missionRouteRequestId = 0;
+
+        function clearMissionRoute() {
+          for (const entity of missionRouteEntities) {
+            viewer.entities.remove(entity);
+          }
+
+          missionRouteEntities = [];
+          scene.requestRender();
+        }
+
+        function cancelMissionRoute() {
+          missionRouteRequestId++;
+
+          if (missionRouteController) {
+            missionRouteController.abort();
+            missionRouteController = null;
+          }
+        }
+
+        async function fetchSlope(lat, lon) {
+          const requestId = ++slopeRequestId;
+
+          if (slopeController) slopeController.abort();
+          slopeController = new AbortController();
+
+          setKey(m4Els.slope, "common.loading");
+          setKey(m4Els.slopeSource, "slope.reading");
+
+          try {
+            const url = new URL(`${ATHR_API}/api/slope`);
+            url.searchParams.set("lat", lat);
+            url.searchParams.set("lon", lon);
+
+            const data = await fetchJson(url, {}, slopeController);
+            if (requestId !== slopeRequestId) return;
+
+            setText(m4Els.slope, `${Number(data.slope.value_degrees).toFixed(3)}°`);
+            bind(m4Els.slopeSource, () =>
+              `${data.source.product} · ~${data.source.resolution_m} m/pixel · ` +
+              `${t("slope.countsValidated", { valid: data.quality.counts_valid, total: data.quality.counts_total })}` +
+              ` · ${t("slope.localEstimate")}`
+            );
+          } catch (error) {
+            if (requestId !== slopeRequestId) return;
+            console.error("ATHR slope error:", error);
+
+            setKey(m4Els.slope, "common.unavailable");
+            bind(m4Els.slopeSource, () => errorText(error));
+          }
+        }
+
+        /* ---------- M5: Terrain Hazard Assessment ---------- */
+
+        let hazardRequestId = 0;
+        let hazardController = null;
+
+        async function fetchHazards(lat, lon) {
+          const requestId = ++hazardRequestId;
+
+          if (hazardController) hazardController.abort();
+          hazardController = new AbortController();
+
+          setKey(m4Els.hazardStatus, "hazard.loading");
+          setKey(m4Els.hazardClassification, "common.loading");
+          setKey(m4Els.hazardMessage, "hazard.readingMola");
+          setKey(m4Els.hazardSafety, "hazard.safety.undetermined");
+          setText(m4Els.hazardElevation, "—");
+          setText(m4Els.hazardSlope, "—");
+          setText(m4Els.hazardSlopeReason, "");
+
+          try {
+            const url = new URL(`${ATHR_API}/api/hazards`);
+            url.searchParams.set("lat", String(lat));
+            url.searchParams.set("lon", String(lon));
+
+            const data = await fetchJson(
+              url,
+              {},
+              hazardController
+            );
+
+            if (requestId !== hazardRequestId) return;
+
+            const assessment = data.assessment || {};
+            const elevation = data.elevation || {};
+            const slope = data.slope || {};
+            const code = assessment.classification;
+            const safety = assessment.safety_status || "undetermined";
+
+            setKey(
+              m4Els.hazardStatus,
+              data.status === "ok" ? "hazard.retrieved" : "hazard.partial"
+            );
+
+            bind(m4Els.hazardClassification, () => {
+              if (!code) return t("common.unavailable");
+              return has(`hazard.class.${code}`) ? t(`hazard.class.${code}`) : String(code);
+            });
+
+            bind(m4Els.hazardMessage, () =>
+              has(`hazard.msg.${code}`)
+                ? t(`hazard.msg.${code}`)
+                : assessment.message || t("hazard.noMessage")
+            );
+
+            bind(m4Els.hazardSafety, () =>
+              has(`hazard.safety.${safety}`) ? t(`hazard.safety.${safety}`) : String(safety)
+            );
+
+            if (elevation.available && Number.isFinite(Number(elevation.value_m))) {
+              setText(m4Els.hazardElevation, `${Number(elevation.value_m).toLocaleString("en-US")} m`);
+            } else {
+              setKey(m4Els.hazardElevation, "common.unavailable");
+            }
+
+            if (slope.available && Number.isFinite(Number(slope.value_degrees))) {
+              setText(m4Els.hazardSlope, `${Number(slope.value_degrees).toFixed(3)}°`);
+            } else {
+              setKey(m4Els.hazardSlope, "common.unavailable");
+            }
+
+            if (slope.available) {
+              setKey(m4Els.hazardSlopeReason, "hazard.localSlope");
+            } else {
+              // The backend reason is English-only; Arabic shows the translated summary.
+              bind(m4Els.hazardSlopeReason, () =>
+                lang === "en" && slope.reason ? slope.reason : t("hazard.slopeInsufficient")
+              );
+            }
+
+            setText(
+              m4Els.hazardSource,
+              `${data.source || "NASA PDS Geosciences Node"} · ` +
+              `${data.data_product || "MGS MOLA MEGDR 32ppd"}`
+            );
+
+          } catch (error) {
+            if (requestId !== hazardRequestId) return;
+
+            console.error("ATHR hazards error:", error);
+
+            setKey(m4Els.hazardStatus, "hazard.unavailable");
+            setKey(m4Els.hazardClassification, "common.unavailable");
+            bind(m4Els.hazardMessage, () => errorText(error));
+            setKey(m4Els.hazardSafety, "hazard.safety.undetermined");
+            setText(m4Els.hazardElevation, "—");
+            setText(m4Els.hazardSlope, "—");
+            setText(m4Els.hazardSlopeReason, "");
+          }
+        }
+
+        /* ---------- M6: NASA Perseverance Mission Route ---------- */
+
+        async function fetchMissionRoute(lat, lon) {
+          cancelMissionRoute();
+          clearMissionRoute();
+
+          const requestId = missionRouteRequestId;
+          const controller = new AbortController();
+          missionRouteController = controller;
+
+          // Text currently shown for the coverage result; the route summary is appended to it.
+          const baseText = getBound(m4Els.waypointsSource);
+
+          try {
+            const data = await fetchJson(
+              `${ATHR_API}/api/mission-route`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  lat: Number(lat),
+                  lon: Number(lon),
+                  radius_km: COVERAGE_RADIUS_KM
+                })
+              },
+              controller
+            );
+
+            if (requestId !== missionRouteRequestId) return;
+
+            // Never draw a route whose ordering could not be verified.
+            if (data.route_order_valid !== true) {
+              const missing = Number(data.missing_order_key_count) || 0;
+              const duplicate = Number(data.duplicate_order_key_count) || 0;
+              const tooFew = (Number(data.usable_features) || 0) - missing < 2;
+
+              bind(m4Els.waypointsSource, () => {
+                const reasons = [];
+                if (missing > 0) reasons.push(t("route.reasonMissing", { n: missing }));
+                if (duplicate > 0) reasons.push(t("route.reasonDuplicate", { n: duplicate }));
+                if (tooFew) reasons.push(t("route.reasonFew"));
+
+                return `${baseText()} · ${t("route.rejected")}` +
+                  (reasons.length ? ` (${reasons.join("; ")})` : "");
+              });
+
+              console.warn("ATHR M6 route rejected:", data);
+              return;
+            }
+
+            const segments = Array.isArray(data.route_segments)
+              ? data.route_segments
+              : [];
+
+            let renderedSegments = 0;
+            let renderedPoints = 0;
+            let invalidPoints = 0;
+
+            const drawRun = (positions) => {
+              if (positions.length < 2) return;
+
+              missionRouteEntities.push(viewer.entities.add({
+                name: "NASA Perseverance Mission Track",
+                polyline: {
+                  positions,
+                  width: 3,
+                  material: Cesium.Color.LIME.withAlpha(0.9),
+                  arcType: Cesium.ArcType.NONE
+                }
+              }));
+
+              renderedSegments += 1;
+              renderedPoints += positions.length;
+            };
+
+            for (const segment of segments) {
+              if (!Array.isArray(segment) || segment.length < 2) continue;
+
+              let run = [];
+
+              for (const point of segment) {
+                const pLat = Number(point.latitude);
+                const pLon = Number(point.longitude);
+
+                if (
+                  !Number.isFinite(pLat) ||
+                  !Number.isFinite(pLon) ||
+                  pLat < -90 ||
+                  pLat > 90
+                ) {
+                  // Never connect across an invalid point: end the line here.
+                  invalidPoints += 1;
+                  drawRun(run);
+                  run = [];
+                  continue;
+                }
+
+                run.push(fromPlanetocentric(pLat, pLon));
+              }
+
+              drawRun(run);
+            }
+
+            scene.requestRender();
+
+            bind(m4Els.waypointsSource, () =>
+              `${baseText()} · ` +
+              t("route.summary", {
+                segments: renderedSegments,
+                points: renderedPoints,
+                gaps: Number(data.gap_count) || 0,
+                threshold: data.gap_threshold_m
+              }) +
+              ` · ${t(data.stale ? "common.stale" : "common.live")}`
+            );
+
+            console.info("ATHR M6 Mission Route", {
+              source: data.source,
+              ordering: data.ordering,
+              totalSourceFeatures: data.total_source_features,
+              usableFeatures: data.usable_features,
+              routePointCount: data.route_point_count,
+              renderedSegments: renderedSegments,
+              renderedPoints: renderedPoints,
+              invalidPointsSkipped: invalidPoints,
+              gapThresholdMeters: data.gap_threshold_m,
+              gapCount: data.gap_count,
+              stale: data.stale
+            });
+          } catch (error) {
+            if (requestId !== missionRouteRequestId) return;
+
+            console.error("M6 Mission Route error:", error);
+
+            bind(m4Els.waypointsSource, () =>
+              `${baseText()} · ${t("route.unavailable", { message: errorText(error) })}`
+            );
+
+            clearMissionRoute();
+          } finally {
+            if (requestId === missionRouteRequestId) {
+              missionRouteController = null;
+            }
+          }
+        }
+
+        // Entity descriptions are rebuilt on demand, so they follow the current language.
+        function waypointDescription(point, distance) {
+          return `
+            <b>${t("wp.title")}</b><br>
+            ${t("wp.site")}: ${escapeHtml(point.site)}<br>
+            ${t("wp.drive")}: ${escapeHtml(point.drive)}<br>
+            ${t("wp.sol")}: ${escapeHtml(point.sol)}<br>
+            ${Number.isFinite(distance) ? `${t("wp.distance")}: ${distance.toFixed(3)} km<br>` : ""}
+            ${point.elevation_geoid_m != null ? `${t("wp.elevation")}: ${escapeHtml(point.elevation_geoid_m)} m<br>` : ""}
+            ${point.traverse_total_m != null ? `${t("wp.traverse")}: ${escapeHtml(point.traverse_total_m)} m` : ""}
+          `;
+        }
+
+        async function fetchCoverage(lat, lon) {
+          const requestId = ++coverageRequestId;
+
+          if (coverageController) coverageController.abort();
+          coverageController = new AbortController();
+
+          clearCoverageEntities();
+          cancelMissionRoute();
+          clearMissionRoute();
+
+          setKey(m4Els.waypoints, "common.loading");
+          setKey(m4Els.waypointsSource, "cov.searching", { radius: COVERAGE_RADIUS_KM });
+
+          try {
+            const data = await fetchJson(`${ATHR_API}/api/discover`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lat: lat,
+                lon: lon,
+                radius_km: COVERAGE_RADIUS_KM,
+                limit: 500
+              })
+            }, coverageController);
+
+            if (requestId !== coverageRequestId) return;
+
+            const result = data.mission_waypoints || {};
+            const points = Array.isArray(result.waypoints) ? result.waypoints : [];
+            const matching = Number.isFinite(result.matching_count)
+              ? result.matching_count
+              : points.length;
+            let drawn = 0;
+
+            for (const point of points) {
+              const pLat = Number(point.latitude);
+              const pLon = Number(point.longitude);
+              if (!Number.isFinite(pLat) || !Number.isFinite(pLon)) continue;
+
+              const distance = Number(point.distance_km);
+
+              coverageEntities.push(viewer.entities.add({
+                name: `Perseverance Site ${point.site ?? "—"} Drive ${point.drive ?? "—"}`,
+                position: fromPlanetocentric(pLat, pLon),
+                point: {
+                  pixelSize: 7,
+                  color: Cesium.Color.CYAN,
+                  outlineColor: Cesium.Color.WHITE,
+                  outlineWidth: 1
+                },
+                description: new Cesium.CallbackProperty(
+                  () => waypointDescription(point, distance),
+                  false
+                )
+              }));
+              drawn += 1;
+            }
+
+            scene.requestRender();
+
+            const radius = data.location.radius_km;
+            const usable = Number.isFinite(result.usable_features) ? result.usable_features : null;
+            const stale = Boolean(result.stale);
+            const checked = () =>
+              usable === null
+                ? ""
+                : ` · ${t("cov.checked", { n: usable.toLocaleString("en-US") })}`;
+            const freshness = () => t(stale ? "common.stale" : "common.live");
+
+            if (matching === 0) {
+              // Perseverance only operates in Jezero Crater, so most of Mars has no waypoints.
+              setKey(m4Els.waypoints, "cov.none");
+              bind(m4Els.waypointsSource, () =>
+                `${t("cov.noneDetail", { radius })}${checked()} · ${freshness()}`
+              );
+            } else {
+              setKey(m4Els.waypoints, "cov.found", { n: matching });
+              bind(m4Els.waypointsSource, () =>
+                t("cov.nasaRadius", { radius }) +
+                (drawn < matching ? ` · ${t("cov.showingNearest", { n: drawn })}` : "") +
+                `${checked()} · ${freshness()}`
+              );
+            }
+
+            // M6: draw the Perseverance route when NASA waypoints are nearby.
+            if (matching > 0) {
+              fetchMissionRoute(lat, lon);
+            }
+          } catch (error) {
+            if (requestId !== coverageRequestId) return;
+
+            console.error("ATHR coverage error:", error);
+
+            setKey(m4Els.waypoints, "common.unavailable");
+            bind(m4Els.waypointsSource, () => errorText(error));
+          }
+        }
+
+        // Called whenever a new location is selected
+        function refreshM4Layers(lat, lon) {
+          if (isActive(m4Els.slopeButton)) fetchSlope(lat, lon);
+          if (isActive(m4Els.coverageButton)) fetchCoverage(lat, lon);
+        }
+
+        // Surface: show/hide NASA Mars Trek imagery
+        m4Els.surfaceButton.addEventListener("click", () => {
+          const layers = viewer.imageryLayers;
+
+          if (layers.length === 0) {
+            console.error("ATHR: No imagery layer found.");
+            return;
+          }
+
+          const surface = layers.get(0);
+          surface.show = !surface.show;
+
+          setLayerState(m4Els.surfaceButton, surface.show);
+          scene.requestRender();
+        });
+
+        // Relief: selected-location elevation information, not a global raster overlay.
+        m4Els.reliefButton.addEventListener("click", () => {
+          const active = !isActive(m4Els.reliefButton);
+          setLayerState(m4Els.reliefButton, active);
+          m4Els.blockElevation.hidden = !active;
+        });
+
+        // Slope: local estimate at the selected location, not a global raster overlay.
+        m4Els.slopeButton.addEventListener("click", () => {
+          const active = !isActive(m4Els.slopeButton);
+          setLayerState(m4Els.slopeButton, active);
+          m4Els.blockSlope.hidden = !active;
+
+          if (!active) {
+            slopeRequestId++;   // drop any in-flight response
+            if (slopeController) slopeController.abort();
+            return;
+          }
+
+          if (selected) {
+            fetchSlope(selected.lat, selected.lon);
+          } else {
+            setText(m4Els.slope, "—");
+            setKey(m4Els.slopeSource, "slope.select");
+          }
+        });
+
+        // Coverage: NASA Mars 2020 waypoints within 25 km of the selected location
+        m4Els.coverageButton.addEventListener("click", () => {
+          const active = !isActive(m4Els.coverageButton);
+          setLayerState(m4Els.coverageButton, active);
+          m4Els.blockCoverage.hidden = !active;
+
+          if (!active) {
+            coverageRequestId++;   // drop any in-flight response
+            if (coverageController) coverageController.abort();
+            clearCoverageEntities();
+            cancelMissionRoute();
+            clearMissionRoute();
+            setKey(m4Els.waypoints, "cov.hidden");
+            setKey(m4Els.waypointsSource, "cov.sourceDefault");
+            return;
+          }
+
+          if (!selected) {
+            setKey(m4Els.waypoints, "cov.selectFirst");
+            setKey(m4Els.waypointsSource, "cov.requires");
+            return;
+          }
+
+          fetchCoverage(selected.lat, selected.lon);
+        });
+
+        function showSelection() {
+          const f = formatPoint(selected);
+          pickEls.lat.textContent = f.lat;
+          pickEls.lon.textContent = f.lon;
+          pickEls.chip.textContent = `${f.lat} · ${f.lon}`;
+          pickEls.empty.hidden = true;
+          pickEls.values.hidden = false;
+          pickEls.chip.hidden = false;
+
+          // Retrieve real elevation for the selected Mars location.
+          fetchElevation(selected.lat, selected.lon);
+
+          // M5: refresh terrain hazard assessment.
+          fetchHazards(selected.lat, selected.lon);
+
+          // M4: refresh slope and coverage when their layers are enabled.
+          refreshM4Layers(selected.lat, selected.lon);
+
+          // M7: tell the AI Assistant the selection changed.
+          document.dispatchEvent(new CustomEvent("athr:selection"));
+        }
+
+        function placeMarker(cartesian) {
+          if (marker) { marker.position = cartesian; return; }
+          marker = viewer.entities.add({
+            name: "Selected location",
+            position: cartesian,
+            point: {
+              pixelSize: 12,
+              color: Cesium.Color.fromCssColorString("#f0b48b"),
+              outlineColor: Cesium.Color.WHITE,
+              outlineWidth: 2,
+              // A point lying exactly on the globe surface is depth-clipped in 3D.
+              // Skip the depth test; far-side hiding is handled by the occluder below.
+              disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+          });
+        }
+
+        // Hide the marker only when Mars itself blocks it from the camera (3D only).
+        const markerOccluder = new Cesium.EllipsoidalOccluder(mars, Cesium.Cartesian3.ZERO);
+
+        scene.preRender.addEventListener(() => {
+          if (!marker || !selected) return;
+
+          if (scene.mode !== Cesium.SceneMode.SCENE3D) {
+            marker.show = true;
+            return;
+          }
+
+          markerOccluder.cameraPosition = viewer.camera.positionWC;
+          marker.show = markerOccluder.isPointVisible(selected.cartesian);
+        });
+
+        const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+        clickHandler.setInputAction((movement) => {
+          if (scene.mode === Cesium.SceneMode.MORPHING) return;
+
+          const cartesian = viewer.camera.pickEllipsoid(movement.position, mars);
+          if (!cartesian) return;   // click landed in space
+
+          selected = { ...toPlanetocentric(cartesian), cartesian };
+          placeMarker(cartesian);
+          showSelection();
+          scene.requestRender();
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        /* ---------- Unified Location Search ---------- */
+
+        const locationSearch = $("location-search");
+        const locationSearchButton = $("location-search-button");
+        const searchResults = $("search-results");
+
+        let nameSearchController = null;
+        let nameSearchRequestId = 0;
+
+        // Browser validation bubbles keep the old language, so clear them on a switch.
+        languageListeners.push(() => locationSearch.setCustomValidity(""));
+
+        function hideSearchResults() {
+          searchResults.hidden = true;
+          searchResults.replaceChildren();
+        }
+
+        // `render` returns the message text, so it follows language changes.
+        function showSearchMessage(render) {
+          searchResults.replaceChildren();
+
+          const element = document.createElement("div");
+          element.className = "search-results-message";
+          bind(element, render);
+
+          searchResults.appendChild(element);
+          searchResults.hidden = false;
+        }
+
+        // Shared selection logic for coordinate and name searches.
+        function selectLocation(lat, lon, name = null) {
+          const cartesian = fromPlanetocentric(lat, lon);
+
+          selected = { lat, lon, cartesian, name };
+
+          placeMarker(cartesian);
+          showSelection();
+
+          viewer.camera.flyToBoundingSphere(
+            new Cesium.BoundingSphere(cartesian, 0),
+            {
+              duration: 2,
+              offset: new Cesium.HeadingPitchRange(
+                0,
+                -Cesium.Math.PI_OVER_TWO,
+                300000
+              )
+            }
+          );
+
+          if (name) {
+            locationSearch.value = name;
+            console.info("ATHR name search:", { name, lat, lon });
+          } else {
+            console.info("ATHR coordinate search:", { lat, lon });
+          }
+
+          hideSearchResults();
+          locationSearch.setCustomValidity("");
+          scene.requestRender();
+        }
+
+        function searchCoordinates() {
+          const raw = locationSearch.value.trim();
+
+          if (!raw) {
+            locationSearch.setCustomValidity(t("search.enterLatLon"));
+            locationSearch.reportValidity();
+            return;
+          }
+
+          const parts = raw.split(",");
+
+          if (parts.length !== 2) {
+            locationSearch.setCustomValidity(t("search.format"));
+            locationSearch.reportValidity();
+            return;
+          }
+
+          const lat = Number(parts[0].trim());
+          let lon = Number(parts[1].trim());
+
+          if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lon) ||
+            lat < -90 ||
+            lat > 90 ||
+            lon < -180 ||
+            lon > 360
+          ) {
+            locationSearch.setCustomValidity(t("search.range"));
+            locationSearch.reportValidity();
+            return;
+          }
+
+          lon = ((lon % 360) + 360) % 360;
+
+          selectLocation(lat, lon);
+        }
+
+        async function searchLocationByName(query) {
+          if (nameSearchController) {
+            nameSearchController.abort();
+          }
+
+          nameSearchController = new AbortController();
+          const controller = nameSearchController;
+          const requestId = ++nameSearchRequestId;
+
+          showSearchMessage(() => t("search.searching"));
+
+          try {
+            const params = new URLSearchParams({
+              q: query,
+              limit: "20"
+            });
+
+            const response = await fetch(
+              `${ATHR_API}/api/search?${params}`,
+              { signal: controller.signal }
+            );
+
+            const data = await response.json();
+
+            if (requestId !== nameSearchRequestId) return;
+
+            if (!response.ok) {
+              throw data.detail
+                ? new Error(String(data.detail))
+                : new UiError("err.http", { status: response.status });
+            }
+
+            const results = Array.isArray(data.results)
+              ? data.results.filter((item) =>
+                  item.item_type === "nomenclature" &&
+                  Number.isFinite(Number(item.latitude)) &&
+                  Number.isFinite(Number(item.longitude))
+                )
+              : [];
+
+            if (results.length === 0) {
+              showSearchMessage(() => t("search.none"));
+              return;
+            }
+
+            searchResults.replaceChildren();
+
+            for (const item of results) {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "search-result";
+
+              const name = document.createElement("span");
+              name.className = "search-result-name";
+              name.textContent = item.name;
+
+              const coordinates = document.createElement("span");
+              coordinates.className = "search-result-coordinates";
+              coordinates.textContent =
+                `${Number(item.latitude).toFixed(4)}° · ` +
+                `${Number(item.longitude).toFixed(4)}° E`;
+
+              button.append(name, coordinates);
+
+              button.addEventListener("click", () => {
+                selectLocation(
+                  Number(item.latitude),
+                  Number(item.longitude),
+                  item.name
+                );
+              });
+
+              searchResults.appendChild(button);
+            }
+
+            searchResults.hidden = false;
+
+          } catch (error) {
+            if (error.name === "AbortError") return;
+            if (requestId !== nameSearchRequestId) return;
+
+            console.error("ATHR name search error:", error);
+
+            const shown = error instanceof TypeError ? new UiError("err.backend") : error;
+            showSearchMessage(() => t("search.failed", { message: errorText(shown) }));
+          }
+        }
+
+        function handleLocationSearch() {
+          const raw = locationSearch.value.trim();
+
+          if (!raw) {
+            locationSearch.setCustomValidity(t("search.enterAny"));
+            locationSearch.reportValidity();
+            return;
+          }
+
+          locationSearch.setCustomValidity("");
+
+          const parts = raw.split(",");
+
+          const looksLikeCoordinates =
+            parts.length === 2 &&
+            parts.every((part) => part.trim() !== "" &&
+              Number.isFinite(Number(part.trim()))
+            );
+
+          if (looksLikeCoordinates) {
+            if (nameSearchController) nameSearchController.abort();
+            nameSearchRequestId++;
+            searchCoordinates();
+            return;
+          }
+
+          searchLocationByName(raw);
+        }
+
+        locationSearchButton.addEventListener(
+          "click",
+          handleLocationSearch
+        );
+
+        locationSearch.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            handleLocationSearch();
+          }
+
+          if (event.key === "Escape") {
+            hideSearchResults();
+          }
+        });
+
+        locationSearch.addEventListener("input", () => {
+          locationSearch.setCustomValidity("");
+
+          if (nameSearchController) {
+            nameSearchController.abort();
+          }
+
+          nameSearchRequestId++;
+          hideSearchResults();
+        });
+
+        document.addEventListener("click", (event) => {
+          if (
+            !event.target.closest(".search-box") &&
+            !event.target.closest("#search-results")
+          ) {
+            hideSearchResults();
+          }
+        });
+
+        pickEls.copy.addEventListener("click", async () => {
+          if (!selected) return;
+          const f = formatPoint(selected);
+          try {
+            await navigator.clipboard.writeText(`${f.lat}, ${f.lon}`);
+            setKey(pickEls.copy, "pick.copied");
+          } catch {
+            setKey(pickEls.copy, "pick.copyUnavailable");
+          }
+          setTimeout(() => setKey(pickEls.copy, "pick.copy"), 1500);
+        });
+
+        /* ---------- M2: 3D / 2D switching ---------- */
+
+        const modeButtons = document.querySelectorAll(".mode-switch [data-mode]");
+
+        const syncModeButtons = () => {
+          const is2D = scene.mode === Cesium.SceneMode.SCENE2D;
+          modeButtons.forEach((b) => {
+            b.disabled = false;
+            b.setAttribute("aria-pressed", String((b.dataset.mode === "2d") === is2D));
+          });
+          scene.requestRenderMode = true;
+          scene.requestRender();
+        };
+
+        // Morph animations need continuous rendering, so pause on-demand mode while they run.
+        scene.morphStart.addEventListener(() => {
+          scene.requestRenderMode = false;
+          modeButtons.forEach((b) => { b.disabled = true; });
+        });
+        scene.morphComplete.addEventListener(syncModeButtons);
+
+        modeButtons.forEach((b) => {
+          b.addEventListener("click", () => {
+            if (b.dataset.mode === "2d" && scene.mode !== Cesium.SceneMode.SCENE2D) scene.morphTo2D(1);
+            if (b.dataset.mode === "3d" && scene.mode !== Cesium.SceneMode.SCENE3D) scene.morphTo3D(1);
+          });
+        });
+        // The selected point and marker are kept across mode changes (stored in body-fixed coordinates).
+
+        console.info("ATHR M1/M2: Mars ellipsoid, Trek imagery, picking and 2D/3D initialized.");
+      } catch (error) {
+        console.error(error);
+        setGlobeStatus("globe.startFailed", true);
+      }
+    })();
+  </script>
+</body>
+</html>
